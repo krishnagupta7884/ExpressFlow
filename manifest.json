@@ -1,0 +1,358 @@
+{
+  "version": "1.0.0",
+  "analyzedAt": "2026-10-08T18:01:02.686Z",
+  "projectRoot": "D:\\study\\programming\\projects\\ExpressFlow\\test\\fixtures",
+  "files": [
+    {
+      "filePath": "sample-app.js",
+      "routersDeclared": [
+        {
+          "identifier": "app",
+          "kind": "APPLICATION",
+          "loc": {
+            "start": {
+              "line": 2,
+              "column": 6
+            },
+            "end": {
+              "line": 2,
+              "column": 21
+            }
+          }
+        },
+        {
+          "identifier": "userRouter",
+          "kind": "ROUTER",
+          "loc": {
+            "start": {
+              "line": 3,
+              "column": 6
+            },
+            "end": {
+              "line": 3,
+              "column": 35
+            }
+          }
+        }
+      ],
+      "routeRegistrations": [
+        {
+          "registrationType": "ROUTE",
+          "routerIdentifier": "app",
+          "httpMethod": "ALL",
+          "path": {
+            "type": "STATIC",
+            "value": "/",
+            "raw": "'/'",
+            "loc": {
+              "start": {
+                "line": 0,
+                "column": 0
+              },
+              "end": {
+                "line": 0,
+                "column": 0
+              }
+            }
+          },
+          "middlewares": [
+            {
+              "executionOrder": 0,
+              "type": "FACTORY_CALL",
+              "name": "express.json",
+              "rawExpression": "express.json(...)",
+              "isInline": false,
+              "loc": {
+                "start": {
+                  "line": 6,
+                  "column": 8
+                },
+                "end": {
+                  "line": 6,
+                  "column": 22
+                }
+              }
+            }
+          ],
+          "loc": {
+            "start": {
+              "line": 6,
+              "column": 0
+            },
+            "end": {
+              "line": 6,
+              "column": 23
+            }
+          }
+        },
+        {
+          "registrationType": "ROUTE",
+          "routerIdentifier": "app",
+          "httpMethod": "GET",
+          "path": {
+            "type": "STATIC",
+            "value": "/health",
+            "raw": "'/health'",
+            "loc": {
+              "start": {
+                "line": 9,
+                "column": 8
+              },
+              "end": {
+                "line": 9,
+                "column": 17
+              }
+            }
+          },
+          "middlewares": [
+            {
+              "executionOrder": 0,
+              "type": "INLINE_FUNCTION",
+              "name": null,
+              "rawExpression": "inline_callback",
+              "isInline": true,
+              "params": [
+                "req",
+                "res"
+              ],
+              "loc": {
+                "start": {
+                  "line": 9,
+                  "column": 19
+                },
+                "end": {
+                  "line": 11,
+                  "column": 1
+                }
+              }
+            }
+          ],
+          "loc": {
+            "start": {
+              "line": 9,
+              "column": 0
+            },
+            "end": {
+              "line": 11,
+              "column": 2
+            }
+          }
+        },
+        {
+          "registrationType": "ROUTE",
+          "routerIdentifier": "app",
+          "httpMethod": "POST",
+          "path": {
+            "type": "STATIC",
+            "value": "/checkout",
+            "raw": "'/checkout'",
+            "loc": {
+              "start": {
+                "line": 15,
+                "column": 2
+              },
+              "end": {
+                "line": 15,
+                "column": 13
+              }
+            }
+          },
+          "middlewares": [
+            {
+              "executionOrder": 0,
+              "type": "IDENTIFIER",
+              "name": "rateLimit",
+              "rawExpression": "rateLimit",
+              "isInline": false,
+              "loc": {
+                "start": {
+                  "line": 16,
+                  "column": 3
+                },
+                "end": {
+                  "line": 16,
+                  "column": 12
+                }
+              }
+            },
+            {
+              "executionOrder": 1,
+              "type": "IDENTIFIER",
+              "name": "verifyToken",
+              "rawExpression": "verifyToken",
+              "isInline": false,
+              "loc": {
+                "start": {
+                  "line": 16,
+                  "column": 15
+                },
+                "end": {
+                  "line": 16,
+                  "column": 26
+                }
+              }
+            },
+            {
+              "executionOrder": 2,
+              "type": "IDENTIFIER",
+              "name": "validateCart",
+              "rawExpression": "validateCart",
+              "isInline": false,
+              "loc": {
+                "start": {
+                  "line": 16,
+                  "column": 28
+                },
+                "end": {
+                  "line": 16,
+                  "column": 40
+                }
+              }
+            },
+            {
+              "executionOrder": 3,
+              "type": "IDENTIFIER",
+              "name": "checkoutHandler",
+              "rawExpression": "checkoutHandler",
+              "isInline": false,
+              "loc": {
+                "start": {
+                  "line": 17,
+                  "column": 2
+                },
+                "end": {
+                  "line": 17,
+                  "column": 17
+                }
+              }
+            }
+          ],
+          "loc": {
+            "start": {
+              "line": 14,
+              "column": 0
+            },
+            "end": {
+              "line": 18,
+              "column": 1
+            }
+          }
+        },
+        {
+          "registrationType": "ROUTE",
+          "routerIdentifier": "userRouter",
+          "httpMethod": "DELETE",
+          "path": {
+            "type": "STATIC",
+            "value": "/:id",
+            "raw": "'/:id'",
+            "loc": {
+              "start": {
+                "line": 21,
+                "column": 18
+              },
+              "end": {
+                "line": 21,
+                "column": 24
+              }
+            }
+          },
+          "middlewares": [
+            {
+              "executionOrder": 0,
+              "type": "IDENTIFIER",
+              "name": "checkAdmin",
+              "rawExpression": "checkAdmin",
+              "isInline": false,
+              "loc": {
+                "start": {
+                  "line": 21,
+                  "column": 26
+                },
+                "end": {
+                  "line": 21,
+                  "column": 36
+                }
+              }
+            },
+            {
+              "executionOrder": 1,
+              "type": "IDENTIFIER",
+              "name": "deleteUserHandler",
+              "rawExpression": "deleteUserHandler",
+              "isInline": false,
+              "loc": {
+                "start": {
+                  "line": 21,
+                  "column": 38
+                },
+                "end": {
+                  "line": 21,
+                  "column": 55
+                }
+              }
+            }
+          ],
+          "loc": {
+            "start": {
+              "line": 21,
+              "column": 0
+            },
+            "end": {
+              "line": 21,
+              "column": 56
+            }
+          }
+        }
+      ],
+      "mounts": [
+        {
+          "registrationType": "MOUNT",
+          "parentRouter": "app",
+          "subRouterIdentifier": "userRouter",
+          "path": {
+            "type": "STATIC",
+            "value": "/api/users",
+            "raw": "'/api/users'",
+            "loc": {
+              "start": {
+                "line": 24,
+                "column": 8
+              },
+              "end": {
+                "line": 24,
+                "column": 20
+              }
+            }
+          },
+          "loc": {
+            "start": {
+              "line": 24,
+              "column": 0
+            },
+            "end": {
+              "line": 24,
+              "column": 33
+            }
+          }
+        }
+      ],
+      "exports": [
+        {
+          "type": "DEFAULT",
+          "localIdentifier": "app",
+          "loc": {
+            "start": {
+              "line": 26,
+              "column": 0
+            },
+            "end": {
+              "line": 26,
+              "column": 20
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
