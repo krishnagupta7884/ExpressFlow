@@ -14,6 +14,7 @@ export {
   flattenMiddlewareNodes,
 } from "./visitor/argumentExtractor";
 export { trackExports } from "./visitor/exportTracker";
+export { trackImports } from "./visitor/importTracker";
 export {
   analyzeSourceContent,
   buildManifestForProject,

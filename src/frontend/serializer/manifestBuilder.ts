@@ -8,6 +8,7 @@ import { discoverSourceFiles, readSourceFile } from "../parser/fileLoader";
 import { trackExpressSymbols } from "../scope/symbolTracker";
 import { extractRoutesAndMounts } from "../visitor/routeVisitor";
 import { trackExports } from "../visitor/exportTracker";
+import { trackImports } from "../visitor/importTracker";
 
 /**
  * Analyzes a single JavaScript or TypeScript source code string and extracts metadata.
@@ -20,6 +21,7 @@ export function analyzeSourceContent(
   const symbolTable = trackExpressSymbols(ast);
   const { routeRegistrations, mounts } = extractRoutesAndMounts(ast, symbolTable);
   const exports = trackExports(ast);
+  const imports = trackImports(ast);
 
   return {
     filePath,
@@ -27,6 +29,7 @@ export function analyzeSourceContent(
     routeRegistrations,
     mounts,
     exports,
+    imports,
   };
 }
 

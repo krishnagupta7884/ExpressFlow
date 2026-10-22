@@ -86,12 +86,23 @@ export interface ExportMetadata {
   loc: SourceLocation;
 }
 
+export type ImportType = "DEFAULT" | "NAMED" | "REQUIRE" | "NAMESPACE";
+
+export interface ImportMetadata {
+  type: ImportType;
+  source: string;               // e.g. "./routes/user" or "express"
+  localIdentifier: string;      // Identifier assigned in current scope
+  importedName?: string;        // Named export or "default"
+  loc: SourceLocation;
+}
+
 export interface SourceFileMetadata {
   filePath: string;
   routersDeclared: RouterDeclaration[];
   routeRegistrations: RouteRegistration[];
   mounts: MountRegistration[];
   exports: ExportMetadata[];
+  imports?: ImportMetadata[];
 }
 
 export interface ExpressFlowManifest {

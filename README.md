@@ -55,14 +55,21 @@ In Express.js applications, security checkpoints (such as authentication, author
 
 ---
 
-## ✨ Features (Frontend Pipeline)
+## ✨ Features
 
+### Frontend Pipeline (Krishna)
 - **AST-Based Parsing:** Uses `@babel/parser` to parse ECMAScript, TypeScript, and JSX with full source location (`line`, `column`) fidelity.
 - **Dynamic Scoped Symbol Table:** Discovers Express applications and sub-routers (`express()`, `express.Router()`) regardless of identifier naming.
 - **Recursive Middleware Flattening:** Accurately unrolls arbitrarily nested middleware arrays (e.g., `[rateLimit, [verifyToken, validateCart]]` $\rightarrow$ linear execution order: $0, 1, 2, 3$).
 - **Anonymous & Inline Handler Isolation:** Differentiates between named middleware identifiers and anonymous inline callback signatures (`(req, res, next) => { ... }`).
 - **Sub-Router Mount Tracking:** Detects prefix mounting (e.g., `app.use('/api/users', userRouter)`).
 - **Module Export Recording:** Tracks CommonJS (`module.exports`) and ESM (`export default`) router exports for cross-file linking.
+
+### Middle-End Engine (Aaditya Jaiswal)
+- **Cross-File Symbol & Module Resolver:** Resolves `require()` and `import` references to link routers across multiple project files.
+- **URL Prefix Tree & Route Composer:** Computes cumulative endpoints across arbitrarily nested sub-router mounts (e.g. `/api` + `/admin` + `/database` $\rightarrow$ `DELETE /api/admin/database`).
+- **Control-Flow Graph (CFG) Generator:** Constructs formal directed graphs ($V, E$) capturing the exact execution progression of middlewares from `ENTRY` to `CONTROLLER_HANDLER` and `EXIT`.
+- **CFG Visualizers & Exporters:** Generates instant terminal ASCII flowcharts, Graphviz DOT representations, and Mermaid diagram code for reports and slides.
 
 ---
 
@@ -139,8 +146,10 @@ npm test
 Expected output:
 ```
 =================================================
-Running ExpressFlow Frontend Pipeline Test Suite
+EXPRESSFLOW AUTOMATED TEST SUITE (REVIEW 2 - 75%)
 =================================================
+
+>>> PART 1: FRONTEND PIPELINE (Lexical, AST & Manifest IR) <<<
 
 [Test 1] Parsing fixture and analyzing AST...
 [Test 2] Verifying Discovered Routers...
@@ -155,10 +164,26 @@ Running ExpressFlow Frontend Pipeline Test Suite
 [Test 5] Verifying Exports...
   ✓ Correctly tracked default export of 'app'
 [Test 6] Verifying Full Project Manifest Builder...
-  ✓ Successfully built manifest across project
+  ✓ Successfully built manifest across project (4 source files indexed)
+
+>>> PART 2: MIDDLE-END ENGINE (Module Resolution, Route Composition & CFG) <<<
+
+[Test 7] Running Middle-End Pipeline on sample-app fixture...
+  ✓ Correctly identified root application 'app'
+[Test 8] Verifying Route Hierarchy & Prefix Composition...
+  ✓ Correctly composed global + route middlewares in linear order
+  ✓ Correctly composed mount path: '/api/users' + '/:id' -> '/api/users/:id'
+[Test 9] Verifying Control-Flow Graph (CFG) Construction & Graph Invariants...
+  ✓ Verified directed graph topology: ENTRY -> M0 -> M1 -> M2 -> M3 -> HANDLER -> EXIT
+[Test 10] Verifying Cross-File Symbol & Module Resolution (modular-app)...
+  ✓ Linked cross-file modules across 3 routers
+[Test 11] Verifying Cross-File Route Composition...
+  ✓ Successfully linked /api/admin/database and /api/users/profile across separate files
+[Test 12] Verifying CFG Visualization Generation (ASCII, DOT, Mermaid)...
+  ✓ Successfully generated ASCII, Graphviz DOT, and Mermaid diagram exports
 
 =================================================
-🎉 ALL TESTS PASSED! FRONTEND PIPELINE IS READY!
+🎉 ALL TESTS PASSED! 75% IMPLEMENTATION IS READY!
 =================================================
 ```
 
@@ -169,11 +194,17 @@ Running ExpressFlow Frontend Pipeline Test Suite
 You can run ExpressFlow directly on any directory containing Express.js source code:
 
 ```bash
-# Print the IR Manifest to stdout:
-node dist/index.js ./test/fixtures
+# Analyze project and display composed routes and CFG summary table:
+node dist/index.js ./test/fixtures/modular-app
 
-# Save the IR Manifest directly to a JSON file:
-node dist/index.js ./test/fixtures ./manifest.json
+# Render full visual ASCII Control-Flow Graphs (CFGs):
+node dist/index.js ./test/fixtures/modular-app --cfg
+
+# Generate Graphviz DOT representations for external visualization:
+node dist/index.js ./test/fixtures/modular-app --dot
+
+# Save the Intermediate Representation (IR) Manifest to a JSON file:
+node dist/index.js ./test/fixtures/modular-app ./manifest.json
 ```
 
 ---
@@ -223,5 +254,5 @@ The frontend produces an IR JSON file conforming to the following structure:
 ## 📚 Course Information
 
 - **Course:** BCSE307P – Compiler Design Lab
-- **Milestone:** Review 1 (25% Implementation Phase — Frontend Pipeline)
+- **Milestone:** Review 2 (75% Implementation Phase — Frontend Pipeline + Middle-End CFG Engine)
 - **Institution:** Vellore Institute of Technology (VIT)

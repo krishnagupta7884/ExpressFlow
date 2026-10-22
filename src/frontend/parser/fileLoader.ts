@@ -17,6 +17,15 @@ export function discoverSourceFiles(rootDir: string): string[] {
   const supportedExtensions = new Set([".js", ".ts", ".mjs", ".cjs"]);
   const results: string[] = [];
 
+  try {
+    const stat = fs.statSync(rootDir);
+    if (stat.isFile()) {
+      return [rootDir];
+    }
+  } catch {
+    return [];
+  }
+
   function traverseDir(currentDir: string) {
     let entries: fs.Dirent[] = [];
     try {
