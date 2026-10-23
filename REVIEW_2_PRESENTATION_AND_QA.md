@@ -143,29 +143,35 @@
 
 - **Final Compiler Output (CFG ASCII Flowchart):**
   ```
-  +----------------------------------------------------------------
-  | CFG: POST /checkout (sample-app.js:14)
-  +----------------------------------------------------------------
+  ╭─────────────────────────────────────────────────────────────────────────────╮
+  │ CFG: POST /checkout                                                         │
+  │ Source: sample-app.js:14 | Total Nodes: 7 | Directed Edges: 6               │
+  ╰─────────────────────────────────────────────────────────────────────────────╯
     [START] ENTRY: POST /checkout (sample-app.js:14:0)
-           |  HTTP Request
-           v
+               │
+               │  [Step 1: HTTP Request]
+               ▼
     [MW]    [GLOBAL] express.json (sample-app.js:6:8)
-           |  next()
-           v
+               │
+               │  [Step 2: next()]
+               ▼
     [MW]    [ROUTE] rateLimit (sample-app.js:16:5)
-           |  next()
-           v
+               │
+               │  [Step 3: next()]
+               ▼
     [MW]    [ROUTE] verifyToken (sample-app.js:16:17)
-           |  next()
-           v
+               │
+               │  [Step 4: next()]
+               ▼
     [MW]    [ROUTE] validateCart (sample-app.js:16:30)
-           |  next()
-           v
+               │
+               │  [Step 5: next()]
+               ▼
     [ACTN]  [ROUTE] checkoutHandler (sample-app.js:17:4)
-           |  Response Sent
-           v
+               │
+               │  [Step 6: Response Sent]
+               ▼
     [END]   EXIT (HTTP Response) (sample-app.js:14:0)
-  +----------------------------------------------------------------
   ```
 - **What this demonstrates:**
   - Nested array `[rateLimit, [verifyToken, validateCart]]` is completely flattened into sequential steps.
@@ -201,31 +207,33 @@
 
 - **Final Compiler Output (Summary Table & CFG):**
   ```
-  --------------------------------------------------------------------------------
-   COMPOSED ENDPOINT ROUTES & CONTROL-FLOW GRAPH SUMMARY
-  --------------------------------------------------------------------------------
-  METHOD  FULL PATH                     TOTAL NODES   HANDLER            SOURCE FILE
-  --------------------------------------------------------------------------------
-  DELETE  /api/admin/database           5             purgeDatabase      routes/admin.js:5
-  --------------------------------------------------------------------------------
+  ┌──────────┬──────────────────────────────┬─────────┬──────────────────────────┬──────────────────────┐
+  │ METHOD   │ COMPOSED ENDPOINT            │ STEPS   │ ACTION HANDLER           │ SOURCE LOCATION      │
+  ├──────────┼──────────────────────────────┼─────────┼──────────────────────────┼──────────────────────┤
+  │ DELETE   │ /api/admin/database          │ 5       │ purgeDatabase            │ routes/admin.js:5    │
+  └──────────┴──────────────────────────────┴─────────┴──────────────────────────┴──────────────────────┘
 
-  +----------------------------------------------------------------
-  | CFG: DELETE /api/admin/database (routes/admin.js:5)
-  +----------------------------------------------------------------
+  ╭─────────────────────────────────────────────────────────────────────────────╮
+  │ CFG: DELETE /api/admin/database                                             │
+  │ Source: routes/admin.js:5 | Total Nodes: 5 | Directed Edges: 4              │
+  ╰─────────────────────────────────────────────────────────────────────────────╯
     [START] ENTRY: DELETE /api/admin/database (routes/admin.js:5:0)
-           |  HTTP Request
-           v
+               │
+               │  [Step 1: HTTP Request]
+               ▼
     [MW]    [GLOBAL] express.json (app.js:5:8)
-           |  next()
-           v
+               │
+               │  [Step 2: next()]
+               ▼
     [MW]    [ROUTE] verifyAdmin (routes/admin.js:5:27)
-           |  next()
-           v
+               │
+               │  [Step 3: next()]
+               ▼
     [ACTN]  [ROUTE] purgeDatabase (routes/admin.js:5:40)
-           |  Response Sent
-           v
+               │
+               │  [Step 4: Response Sent]
+               ▼
     [END]   EXIT (HTTP Response) (routes/admin.js:5:0)
-  +----------------------------------------------------------------
   ```
 - **What this demonstrates:**
   - Prefix tree composition: `/api/admin` + `/database` $\implies$ `/api/admin/database`.

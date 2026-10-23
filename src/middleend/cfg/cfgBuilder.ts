@@ -145,9 +145,10 @@ export function buildProjectCfgs(routes: ComposedRoute[]): RouteCfg[] {
  */
 export function toAscii(cfg: RouteCfg): string {
   const lines: string[] = [];
-  lines.push(`+----------------------------------------------------------------`);
-  lines.push(`| CFG: ${cfg.method} ${cfg.fullPath} (${cfg.sourceFile}:${cfg.loc.start.line})`);
-  lines.push(`+----------------------------------------------------------------`);
+  lines.push(`╭─────────────────────────────────────────────────────────────────────────────╮`);
+  lines.push(`│ CFG: ${cfg.method} ${cfg.fullPath}`.padEnd(78) + `│`);
+  lines.push(`│ Source: ${cfg.sourceFile}:${cfg.loc.start.line} | Total Nodes: ${cfg.nodeCount} | Directed Edges: ${cfg.edgeCount}`.padEnd(78) + `│`);
+  lines.push(`╰─────────────────────────────────────────────────────────────────────────────╯`);
 
   for (let i = 0; i < cfg.nodes.length; i++) {
     const node = cfg.nodes[i];
@@ -155,25 +156,28 @@ export function toAscii(cfg: RouteCfg): string {
     const isExit = node.id === cfg.exitNodeId;
     const isHandler = node.id === cfg.terminalHandlerNodeId;
 
-    let marker = "[MW]";
+    let marker = "[MW]   ";
     if (isEntry) marker = "[START]";
     else if (isExit) marker = "[END]  ";
     else if (isHandler) marker = "[ACTN] ";
 
     const locInfo = node.loc && node.loc.start.line > 0
-      ? `(${node.sourceFile}:${node.loc.start.line}:${node.loc.start.column})`
+      ? ` (${node.sourceFile}:${node.loc.start.line}:${node.loc.start.column})`
       : "";
 
-    lines.push(`  ${marker} ${node.label} ${locInfo}`);
+    lines.push(`  ${marker} ${node.label}${locInfo}`);
 
     if (i < cfg.nodes.length - 1) {
       const edge = cfg.edges[i];
-      lines.push(`         |  ${edge.label || ""}`);
-      lines.push(`         v`);
+      const stepNum = i + 1;
+      const edgeLabel = edge.label ? `[Step ${stepNum}: ${edge.label}]` : `[Step ${stepNum}]`;
+      lines.push(`             │`);
+      lines.push(`             │  ${edgeLabel}`);
+      lines.push(`             ▼`);
     }
   }
 
-  lines.push(`+----------------------------------------------------------------\n`);
+  lines.push(``);
   return lines.join("\n");
 }
 

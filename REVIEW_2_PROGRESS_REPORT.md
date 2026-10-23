@@ -200,48 +200,55 @@ EXPRESSFLOW AUTOMATED TEST SUITE (REVIEW 2 - 75%)
 Executing `node dist/index.js ./test/fixtures/modular-app --cfg` produces:
 
 ```
-================================================================================
- EXPRESSFLOW: AHEAD-OF-TIME STATIC ROUTE & CFG ANALYSIS ENGINE
- Milestone: Review 2 (75% Implementation - Frontend + Middle-End)
-================================================================================
-[Phase 1] Frontend: Scanning source files in .../modular-app...
-  ✓ Indexed 3 source file(s) into Intermediate Representation.
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 🚀 EXPRESSFLOW: AHEAD-OF-TIME STATIC ROUTE & CFG COMPILER ENGINE            │
+│ Review 2 Milestone: 75% Implementation (Frontend AST + Middle-End CFG)      │
+└─────────────────────────────────────────────────────────────────────────────┘
+[Phase 1] 🔎 Frontend AST Parser (Krishna)
+  Scanning directory: .../modular-app
+  ✔ Successfully indexed 3 source file(s) into Intermediate Representation.
 
-[Phase 2] Middle-End: Linking modules, composing routes, and constructing CFGs...
-  ✓ Discovered 3 router declaration(s).
-  ✓ Resolved 1 root application entry-point(s).
-  ✓ Composed 5 reachable endpoint route(s).
-  ✓ Built 5 Control-Flow Graph(s) (CFGs).
+[Phase 2] ⚙️  Middle-End CFG Engine (Aaditya)
+  Linking modules, composing URL paths, and constructing Control-Flow Graphs...
+  ✔ Discovered 3 router declaration(s).
+  ✔ Resolved 1 root application entry-point(s).
+  ✔ Composed 5 reachable endpoint route(s).
+  ✔ Synthesized 5 formal Control-Flow Graph(s) (CFGs).
 
---------------------------------------------------------------------------------
- COMPOSED ENDPOINT ROUTES & CONTROL-FLOW GRAPH SUMMARY
---------------------------------------------------------------------------------
-METHOD  FULL PATH                     TOTAL NODES   HANDLER                  SOURCE FILE
------------------------------------------------------------------------------------------------
-GET     /status                       4             inline(req, res)         app.js:16
-DELETE  /api/admin/database           5             purgeDatabase            routes/admin.js:5
-POST    /api/admin/restart            6             restartServer            routes/admin.js:6
-GET     /api/users/profile            5             getUserProfile           routes/user.js:5
-PUT     /api/users/settings           6             updateSettings           routes/user.js:6
---------------------------------------------------------------------------------
+╭─────────────────────────────────────────────────────────────────────────────╮
+│ 📋 COMPOSED ENDPOINT ROUTES & EXECUTION SUMMARY                             │
+╰─────────────────────────────────────────────────────────────────────────────╯
+┌──────────┬──────────────────────────────┬─────────┬──────────────────────────┬──────────────────────┐
+│ METHOD   │ COMPOSED ENDPOINT            │ STEPS   │ ACTION HANDLER           │ SOURCE LOCATION      │
+├──────────┼──────────────────────────────┼─────────┼──────────────────────────┼──────────────────────┤
+│ GET      │ /status                      │ 4       │ inline(req, res)         │ app.js:16            │
+│ DELETE   │ /api/admin/database          │ 5       │ purgeDatabase            │ routes/admin.js:5    │
+│ POST     │ /api/admin/restart           │ 6       │ restartServer            │ routes/admin.js:6    │
+│ GET      │ /api/users/profile           │ 5       │ getUserProfile           │ routes/user.js:5     │
+│ PUT      │ /api/users/settings          │ 6       │ updateSettings           │ routes/user.js:6     │
+└──────────┴──────────────────────────────┴─────────┴──────────────────────────┴──────────────────────┘
 
-+----------------------------------------------------------------
-| CFG: DELETE /api/admin/database (routes/admin.js:5)
-+----------------------------------------------------------------
+╭─────────────────────────────────────────────────────────────────────────────╮
+│ CFG: DELETE /api/admin/database                                             │
+│ Source: routes/admin.js:5 | Total Nodes: 5 | Directed Edges: 4              │
+╰─────────────────────────────────────────────────────────────────────────────╯
   [START] ENTRY: DELETE /api/admin/database (routes/admin.js:5:0)
-         |  HTTP Request
-         v
+             │
+             │  [Step 1: HTTP Request]
+             ▼
   [MW]    [GLOBAL] express.json (app.js:5:8)
-         |  next()
-         v
+             │
+             │  [Step 2: next()]
+             ▼
   [MW]    [ROUTE] verifyAdmin (routes/admin.js:5:27)
-         |  next()
-         v
+             │
+             │  [Step 3: next()]
+             ▼
   [ACTN]  [ROUTE] purgeDatabase (routes/admin.js:5:40)
-         |  Response Sent
-         v
+             │
+             │  [Step 4: Response Sent]
+             ▼
   [END]   EXIT (HTTP Response) (routes/admin.js:5:0)
-+----------------------------------------------------------------
 ```
 
 ---
