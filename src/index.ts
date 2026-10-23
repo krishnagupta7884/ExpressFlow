@@ -9,8 +9,8 @@ import { RouteCfg } from "./middleend/cfg/cfgModel";
  * Formats a clean Unicode box-drawing table for composed routes.
  */
 function renderRouteTable(cfgs: RouteCfg[]): string {
-  const colWidths = [8, 28, 7, 24, 20];
-  const headers = ["METHOD", "COMPOSED ENDPOINT", "STEPS", "ACTION HANDLER", "SOURCE LOCATION"];
+  const colWidths = [6, 21, 5, 16, 18];
+  const headers = ["METHOD", "COMPOSED ENDPOINT", "STEPS", "ACTION HANDLER", "LOCATION"];
 
   const top    = "┌─" + colWidths.map(w => "─".repeat(w)).join("─┬─") + "─┐";
   const header = "│ " + headers.map((h, i) => h.padEnd(colWidths[i])).join(" │ ") + " │";
@@ -22,7 +22,7 @@ function renderRouteTable(cfgs: RouteCfg[]): string {
     const handlerName = handlerNode?.label.replace(/\[.*?\]\s*/, "") || "anonymous";
     const loc = `${cfg.sourceFile}:${cfg.loc.start.line}`;
     return "│ " + [
-      cfg.method.padEnd(colWidths[0]),
+      cfg.method.slice(0, colWidths[0]).padEnd(colWidths[0]),
       cfg.fullPath.slice(0, colWidths[1]).padEnd(colWidths[1]),
       String(cfg.nodeCount).padEnd(colWidths[2]),
       handlerName.slice(0, colWidths[3]).padEnd(colWidths[3]),
@@ -46,10 +46,10 @@ function main() {
   const outputPath = nonFlagArgs[1];
 
   console.log("");
-  console.log("┌─────────────────────────────────────────────────────────────────────────────┐");
-  console.log("│ 🚀 EXPRESSFLOW: AHEAD-OF-TIME STATIC ROUTE & CFG COMPILER ENGINE            │");
-  console.log("│ Review 2 Milestone: 75% Implementation (Frontend AST + Middle-End CFG)      │");
-  console.log("└─────────────────────────────────────────────────────────────────────────────┘");
+  console.log("┌────────────────────────────────────────────────────────────────────────┐");
+  console.log("│ 🚀 EXPRESSFLOW: AHEAD-OF-TIME STATIC ROUTE & CFG COMPILER ENGINE       │");
+  console.log("│ Review 2 Milestone: 75% Implementation (Frontend AST + Middle-End CFG) │");
+  console.log("└────────────────────────────────────────────────────────────────────────┘");
   console.log(`[Phase 1] 🔎 Frontend AST Parser (Krishna)`);
   console.log(`  Scanning directory: ${path.resolve(targetDir)}`);
 
@@ -67,9 +67,9 @@ function main() {
   console.log(`  ✔ Synthesized ${cfgs.length} formal Control-Flow Graph(s) (CFGs).\n`);
 
   // Print Route Summary Table
-  console.log("╭─────────────────────────────────────────────────────────────────────────────╮");
-  console.log("│ 📋 COMPOSED ENDPOINT ROUTES & EXECUTION SUMMARY                             │");
-  console.log("╰─────────────────────────────────────────────────────────────────────────────╯");
+  console.log("╭────────────────────────────────────────────────────────────────────────╮");
+  console.log("│ 📋 COMPOSED ENDPOINT ROUTES & EXECUTION SUMMARY                        │");
+  console.log("╰────────────────────────────────────────────────────────────────────────╯");
   console.log(renderRouteTable(cfgs));
   console.log("");
 
