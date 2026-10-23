@@ -50,13 +50,13 @@ function main() {
   console.log("│ 🚀 EXPRESSFLOW: AHEAD-OF-TIME STATIC ROUTE & CFG COMPILER ENGINE       │");
   console.log("│ Review 2 Milestone: 75% Implementation (Frontend AST + Middle-End CFG) │");
   console.log("└────────────────────────────────────────────────────────────────────────┘");
-  console.log(`[Phase 1] 🔎 Frontend AST Parser (Krishna)`);
+  console.log(`[Phase 1] 🔎 Frontend AST Parser`);
   console.log(`  Scanning directory: ${path.resolve(targetDir)}`);
 
   const manifest = buildManifestForProject(targetDir);
   console.log(`  ✔ Successfully indexed ${manifest.files.length} source file(s) into Intermediate Representation.\n`);
 
-  console.log(`[Phase 2] ⚙️  Middle-End CFG Engine (Aaditya)`);
+  console.log(`[Phase 2] ⚙️  Middle-End CFG Engine`);
   console.log(`  Linking modules, composing URL paths, and constructing Control-Flow Graphs...`);
   const middleEndResult = runMiddleEndPipeline(manifest);
 

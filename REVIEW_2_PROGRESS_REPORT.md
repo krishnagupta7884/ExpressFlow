@@ -204,11 +204,11 @@ Executing `node dist/index.js ./test/fixtures/modular-app --cfg` produces:
 │ 🚀 EXPRESSFLOW: AHEAD-OF-TIME STATIC ROUTE & CFG COMPILER ENGINE            │
 │ Review 2 Milestone: 75% Implementation (Frontend AST + Middle-End CFG)      │
 └─────────────────────────────────────────────────────────────────────────────┘
-[Phase 1] 🔎 Frontend AST Parser (Krishna)
+[Phase 1] 🔎 Frontend AST Parser
   Scanning directory: .../modular-app
   ✔ Successfully indexed 3 source file(s) into Intermediate Representation.
 
-[Phase 2] ⚙️  Middle-End CFG Engine (Aaditya)
+[Phase 2] ⚙️  Middle-End CFG Engine
   Linking modules, composing URL paths, and constructing Control-Flow Graphs...
   ✔ Discovered 3 router declaration(s).
   ✔ Resolved 1 root application entry-point(s).
