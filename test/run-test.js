@@ -5,17 +5,18 @@ const {
   analyzeSourceContent,
   buildManifestForProject,
   runMiddleEndPipeline,
+  computeDominatorTree,
   toAscii,
   toDot,
   toMermaid,
 } = require("../dist/index.js");
 
-console.log("=================================================");
-console.log("EXPRESSFLOW AUTOMATED TEST SUITE (REVIEW 2 - 75%)");
-console.log("=================================================");
+console.log("================================================================================");
+console.log(" EXPRESSFLOW AUTOMATED COMPREHENSIVE TEST SUITE (100% IMPLEMENTATION)");
+console.log("================================================================================");
 
 // =============================================================================
-// PART 1: FRONTEND PIPELINE TESTS
+// PART 1: FRONTEND PIPELINE TESTS (Lexical, Syntactic, AST & Manifest IR)
 // =============================================================================
 console.log("\n>>> PART 1: FRONTEND PIPELINE (Lexical, AST & Manifest IR) <<<");
 
@@ -108,7 +109,7 @@ assert.ok(manifest.files.length > 0, "Manifest should include analyzed files");
 console.log(`  ✓ Successfully built manifest across project (${manifest.files.length} source files indexed)`);
 
 // =============================================================================
-// PART 2: MIDDLE-END ENGINE TESTS
+// PART 2: MIDDLE-END ENGINE TESTS (Module Resolution, Route Composition & CFG)
 // =============================================================================
 console.log("\n>>> PART 2: MIDDLE-END ENGINE (Module Resolution, Route Composition & CFG) <<<");
 
@@ -182,6 +183,66 @@ const mermaid = toMermaid(checkoutCfg);
 assert.ok(mermaid.includes("flowchart TD"));
 console.log("  ✓ Successfully generated ASCII, Graphviz DOT, and Mermaid diagram exports");
 
-console.log("\n=================================================");
-console.log("🎉 ALL TESTS PASSED! 75% IMPLEMENTATION IS READY!");
-console.log("=================================================");
+// =============================================================================
+// PART 3: BACKEND SECURITY INVARIANT & DOMINATOR ANALYSIS (100% Milestone)
+// =============================================================================
+console.log("\n>>> PART 3: BACKEND SECURITY ENGINE (Dominator Reachability & Invariants) <<<");
+
+console.log("\n[Test 13] Verifying Graph Dominator Tree Construction on CFG...");
+const domTree = computeDominatorTree(checkoutCfg);
+assert.strictEqual(domTree.rootId, "ENTRY");
+
+for (const node of checkoutCfg.nodes) {
+  assert.ok(domTree.dominates("ENTRY", node.id), `ENTRY must dominate ${node.id}`);
+  assert.ok(domTree.dominates(node.id, node.id), `Reflexive dominance failed for ${node.id}`);
+}
+console.log("  ✓ Proved formal dominance invariants: ENTRY dominates all nodes, and all nodes dominate themselves");
+
+console.log("\n[Test 14] Auditing Vulnerable Project Target (vulnerable-app)...");
+const vulnAppPath = path.join(__dirname, "fixtures", "vulnerable-app");
+const vulnManifest = buildManifestForProject(vulnAppPath);
+const vulnResult = runMiddleEndPipeline(vulnManifest);
+const report = vulnResult.securityReport;
+
+assert.strictEqual(report.passed, false, "Audit must fail on vulnerable target");
+assert.strictEqual(report.totalRoutes, 8);
+assert.strictEqual(report.vulnerableRoutes, 3);
+assert.strictEqual(report.cleanRoutes, 5);
+console.log(`  ✓ Audited 8 endpoints: identified 5 secure routes and 3 vulnerable routes`);
+
+console.log("\n[Test 15] Verifying Invariant Rule 1: Auth-Before-Sensitive...");
+const purgeViolation = report.violations.find(
+  (v) => v.ruleId === "RULE_1_AUTH_BEFORE_SENSITIVE" && v.routeId === "DELETE /api/admin/purge-cache"
+);
+assert.ok(purgeViolation, "DELETE /api/admin/purge-cache must trigger Rule 1");
+assert.strictEqual(purgeViolation.severity, "CRITICAL");
+console.log("  ✓ Correctly flagged unauthenticated DELETE /api/admin/purge-cache (Severity: CRITICAL)");
+
+console.log("\n[Test 16] Verifying Invariant Rule 2: Misordered Security Checkpoint...");
+const dropViolation = report.violations.find(
+  (v) => v.ruleId === "RULE_2_MISORDERED_SECURITY_GUARD" && v.routeId === "POST /api/admin/drop-database"
+);
+assert.ok(dropViolation, "POST /api/admin/drop-database must trigger Rule 2");
+assert.strictEqual(dropViolation.severity, "CRITICAL");
+console.log("  ✓ Correctly flagged misordered auth in POST /api/admin/drop-database (Severity: CRITICAL)");
+
+console.log("\n[Test 17] Verifying Invariant Rule 4: Brute-Force Rate Limiting...");
+const loginViolation = report.violations.find(
+  (v) => v.ruleId === "RULE_4_MISSING_RATE_LIMIT" && v.routeId === "POST /api/auth/login"
+);
+assert.ok(loginViolation, "POST /api/auth/login must trigger Rule 4");
+assert.strictEqual(loginViolation.severity, "MEDIUM");
+
+const regViolation = report.violations.find((v) => v.routeId === "POST /api/auth/register");
+assert.strictEqual(regViolation, undefined, "Protected register endpoint must have no rate-limit violation");
+console.log("  ✓ Verified rate-limiting enforcement on auth entrypoints (login flagged, register passed)");
+
+console.log("\n[Test 18] Verifying Clean Project (modular-app) Passes Security Audit...");
+const cleanAudit = modularResult.securityReport;
+const criticalViolations = cleanAudit.violations.filter((v) => v.severity === "CRITICAL");
+assert.strictEqual(criticalViolations.length, 0, "Clean project should have 0 critical violations");
+console.log("  ✓ Confirmed modular-app has 0 critical vulnerabilities");
+
+console.log("\n================================================================================");
+console.log("🎉 ALL 18 TESTS PASSED! EXPRESSFLOW 100% IMPLEMENTATION IS COMPLETE!");
+console.log("================================================================================");

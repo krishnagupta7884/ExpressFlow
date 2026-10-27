@@ -2,7 +2,7 @@
 import * as path from "path";
 import * as fs from "fs";
 import { buildManifestForProject } from "./frontend/serializer/manifestBuilder";
-import { runMiddleEndPipeline, toAscii, toDot } from "./middleend";
+import { runMiddleEndPipeline, toAscii, toDot, formatSecurityReport } from "./middleend";
 import { RouteCfg } from "./middleend/cfg/cfgModel";
 
 /**
@@ -35,7 +35,7 @@ function renderRouteTable(cfgs: RouteCfg[]): string {
 
 /**
  * ExpressFlow Unified CLI Entry Point
- * Orchestrates Frontend (Krishna) and Middle-End (Aaditya) Analysis Engines
+ * Orchestrates Frontend AST, Middle-End CFG, and Backend Dominator Security Verification
  */
 function main() {
   const args = process.argv.slice(2);
@@ -48,7 +48,7 @@ function main() {
   console.log("");
   console.log("┌────────────────────────────────────────────────────────────────────────┐");
   console.log("│ 🚀 EXPRESSFLOW: AHEAD-OF-TIME STATIC ROUTE & CFG COMPILER ENGINE       │");
-  console.log("│ Review 2 Milestone: 75% Implementation (Frontend AST + Middle-End CFG) │");
+  console.log("│ Full Implementation (Frontend AST + Middle-End CFG + Security Verifier)│");
   console.log("└────────────────────────────────────────────────────────────────────────┘");
   console.log(`[Phase 1] 🔎 Frontend AST Parser`);
   console.log(`  Scanning directory: ${path.resolve(targetDir)}`);
@@ -60,11 +60,16 @@ function main() {
   console.log(`  Linking modules, composing URL paths, and constructing Control-Flow Graphs...`);
   const middleEndResult = runMiddleEndPipeline(manifest);
 
-  const { resolution, composedRoutes, cfgs } = middleEndResult;
+  const { resolution, composedRoutes, cfgs, securityReport } = middleEndResult;
   console.log(`  ✔ Discovered ${resolution.routers.size} router declaration(s).`);
   console.log(`  ✔ Resolved ${resolution.rootApplications.length} root application entry-point(s).`);
   console.log(`  ✔ Composed ${composedRoutes.length} reachable endpoint route(s).`);
   console.log(`  ✔ Synthesized ${cfgs.length} formal Control-Flow Graph(s) (CFGs).\n`);
+
+  console.log(`[Phase 3] 🛡️  Backend Security Analysis (Dominator Invariant Verification)`);
+  console.log(`  ✔ Computed formal Dominator Trees for all ${cfgs.length} route graph(s).`);
+  console.log(`  ✔ Evaluated invariant dominance: Auth-Before-Sensitive, Invariant Ordering, Rate Limiting.`);
+  console.log(`  ✔ Security Audit Status: ${securityReport.cleanRoutes} Safe | ${securityReport.vulnerableRoutes} Vulnerable\n`);
 
   // Print Route Summary Table
   console.log("╭────────────────────────────────────────────────────────────────────────╮");
@@ -94,6 +99,9 @@ function main() {
     }
   }
 
+  // Print Diagnostic Security Report
+  console.log(formatSecurityReport(securityReport));
+
   // If --dot flag provided, print Graphviz DOT representation
   if (flags.has("--dot")) {
     console.log("\n--- Graphviz DOT Graphs ---");
@@ -108,8 +116,18 @@ function main() {
     fs.writeFileSync(outputPath, jsonString, "utf-8");
     console.log(`[ExpressFlow] Intermediate Representation (IR) written to: ${outputPath}`);
   } else if (flags.has("--json")) {
-    console.log("\n--- ExpressFlow IR Manifest JSON ---");
-    console.log(JSON.stringify(manifest, null, 2));
+    const fullJson = {
+      manifest,
+      composedRoutes,
+      securityReport,
+    };
+    console.log("\n--- ExpressFlow Full Analysis JSON ---");
+    console.log(JSON.stringify(fullJson, null, 2));
+  }
+
+  // If --strict flag passed and security invariants failed, exit with non-zero code
+  if (flags.has("--strict") && !securityReport.passed) {
+    process.exit(1);
   }
 }
 

@@ -1,7 +1,7 @@
 # ExpressFlow
 
 > **Semantic Static Analysis of Express.js Middleware Architectures**  
-> *A specialized ahead-of-time compiler tool that constructs Control-Flow Graphs (CFGs) from Express.js source code to statically verify route security invariants.*
+> *A specialized ahead-of-time compiler tool that constructs Control-Flow Graphs (CFGs) from Express.js source code and verifies path-reachability security invariants using formal Dominator Tree analysis.*
 
 ---
 
@@ -9,7 +9,7 @@
 
 In Express.js applications, security checkpoints (such as authentication, authorization, and rate limiting) are executed as sequentially chained middleware functions. Because JavaScript allows middlewares to be attached dynamically, developers can inadvertently omit authentication or misorder handlers (e.g., executing a sensitive handler before an authentication guard). Such code is syntactically valid and fails silently without throwing runtime exceptions.
 
-**ExpressFlow** addresses this vulnerability class through **Ahead-Of-Time (AOT) Static Program Analysis**. It parses JavaScript/TypeScript source code into an Abstract Syntax Tree (AST), extracts routing definitions and ordered middleware chains, and compiles them into a structured Intermediate Representation (IR) to verify path-reachability security invariants without running the server.
+**ExpressFlow** addresses this vulnerability class through **Ahead-Of-Time (AOT) Static Program Analysis**. It parses JavaScript/TypeScript source code into an Abstract Syntax Tree (AST), extracts routing definitions and ordered middleware chains, compiles them into a structured Intermediate Representation (IR), synthesizes formal Control-Flow Graphs (CFGs), and runs formal **Dominator Tree reachability verification** to detect architectural security flaws before deployment.
 
 ---
 
@@ -17,22 +17,22 @@ In Express.js applications, security checkpoints (such as authentication, author
 
 | Register No. | Name | Role & Planned Contribution |
 | :--- | :--- | :--- |
-| **24BCE0732** | **Krishna** | **Frontend Pipeline:** Lexical and syntactic analysis, ESTree/Babel AST generation, Express scope & symbol tracking, route/middleware argument deconstruction, and IR manifest serialization. |
-| **24BCE2584** | **Aaditya Jaiswal** | **Middle-End Engine:** Cross-file module linking, prefix tree URL composition, Control-Flow Graph (CFG) generation, and path-reachability security invariant analysis. |
+| **24BCE0732** | **Krishna** | **Frontend Pipeline & AST Engineering:** Lexical and syntactic analysis, ESTree/Babel AST generation, Express scope & symbol tracking, route/middleware argument deconstruction, and IR manifest serialization. |
+| **24BCE2584** | **Aaditya Jaiswal** | **Middle-End Engine & Backend Security Analysis:** Cross-file module linking, prefix tree URL composition, Control-Flow Graph (CFG) generation, formal Dominator Tree ($Dom(n)$) computation, and security invariant verification. |
 
 ---
 
-## 🏗️ System Architecture
+## 🏗️ Complete System Architecture (100% Implementation)
 
 ```
 +===================================================================================+
-|                                EXPRESSFLOW SYSTEM                                 |
+|                                EXPRESSFLOW COMPILER SYSTEM                        |
 +===================================================================================+
 |                                                                                   |
 |   [ Source Files (.js / .ts) ]                                                    |
 |                |                                                                  |
 |   =============v======================================                            |
-|   FRONTEND PIPELINE (Lead: Krishna)                                               |
+|   PHASE 1: FRONTEND AST PARSER (Lead: Krishna)                                    |
 |     1. Lexical & Syntactic Parsing (Source -> AST via @babel/parser)              |
 |     2. Express Identifier Tracking (Detect `app` & `express.Router()`)            |
 |     3. AST Visitor Engine (Extract `app.use`, `app.get`, `router.post`, etc.)     |
@@ -44,12 +44,23 @@ In Express.js applications, security checkpoints (such as authentication, author
 |                | Handoff Contract (Intermediate Representation JSON)              |
 |                v                                                                  |
 |   =============v======================================                            |
-|   MIDDLE-END ENGINE (Lead: Aaditya Jaiswal)                                       |
-|     - Multi-File Symbol & Module Resolver                                         |
-|     - URL Prefix Tree & Path Composer                                             |
-|     - Directed Control-Flow Graph (CFG) Construction                              |
-|     - Security Dominance & Path Reachability Verification                         |
-|     - Diagnostic Vulnerability Reporting                                          |
+|   PHASE 2: MIDDLE-END CFG ENGINE (Lead: Aaditya Jaiswal)                          |
+|     1. Cross-File Symbol & Module Resolver (`require` / `import` linking)         |
+|     2. URL Prefix Tree & Path Composer (Cumulative sub-router mount calculation)   |
+|     3. Directed Control-Flow Graph (CFG) Synthesis ($V, E$)                       |
+|     4. Multi-Format Visualizers (ASCII Flowcharts, Graphviz DOT, Mermaid diagrams) |
+|   =============|======================================                            |
+|                |                                                                  |
+|                | Composed Route CFGs ($G = (V, E)$)                               |
+|                v                                                                  |
+|   =============v======================================                            |
+|   PHASE 3: BACKEND SECURITY VERIFIER (Lead: Aaditya Jaiswal)                      |
+|     1. Dominator Tree Construction: Iterative Dataflow Framework ($Dom(n), idom$) |
+|     2. Invariant Rule 1: Auth-Before-Sensitive ($A \text{ dom } H$)                |
+|     3. Invariant Rule 2: Execution Ordering Invariant ($\text{order}(A) < \text{order}(H)$)|
+|     4. Invariant Rule 3: Unprotected Administrative Mount Isolation               |
+|     5. Invariant Rule 4: Brute-Force Rate-Limiting Enforcement ($L \text{ dom } H$)|
+|     6. Diagnostic Vulnerability Reporter (Trace, Invariant Formula & Remediation) |
 +===================================================================================+
 ```
 
@@ -57,7 +68,7 @@ In Express.js applications, security checkpoints (such as authentication, author
 
 ## ✨ Features
 
-### Frontend Pipeline (Krishna)
+### Phase 1: Frontend Pipeline (Krishna)
 - **AST-Based Parsing:** Uses `@babel/parser` to parse ECMAScript, TypeScript, and JSX with full source location (`line`, `column`) fidelity.
 - **Dynamic Scoped Symbol Table:** Discovers Express applications and sub-routers (`express()`, `express.Router()`) regardless of identifier naming.
 - **Recursive Middleware Flattening:** Accurately unrolls arbitrarily nested middleware arrays (e.g., `[rateLimit, [verifyToken, validateCart]]` $\rightarrow$ linear execution order: $0, 1, 2, 3$).
@@ -65,11 +76,20 @@ In Express.js applications, security checkpoints (such as authentication, author
 - **Sub-Router Mount Tracking:** Detects prefix mounting (e.g., `app.use('/api/users', userRouter)`).
 - **Module Export Recording:** Tracks CommonJS (`module.exports`) and ESM (`export default`) router exports for cross-file linking.
 
-### Middle-End Engine (Aaditya Jaiswal)
-- **Cross-File Symbol & Module Resolver:** Resolves `require()` and `import` references to link routers across multiple project files.
-- **URL Prefix Tree & Route Composer:** Computes cumulative endpoints across arbitrarily nested sub-router mounts (e.g. `/api` + `/admin` + `/database` $\rightarrow$ `DELETE /api/admin/database`).
-- **Control-Flow Graph (CFG) Generator:** Constructs formal directed graphs ($V, E$) capturing the exact execution progression of middlewares from `ENTRY` to `CONTROLLER_HANDLER` and `EXIT`.
+### Phase 2: Middle-End CFG Engine (Aaditya Jaiswal)
+- **Cross-File Symbol & Module Resolver:** Resolves `require()` and `import` references across separate modules and directories.
+- **URL Prefix Tree & Route Composer:** Computes cumulative endpoints across arbitrarily nested sub-router mounts (e.g. `/api` + `/admin` + `/purge-cache` $\rightarrow$ `DELETE /api/admin/purge-cache`).
+- **Control-Flow Graph (CFG) Generator:** Constructs formal directed graphs ($V, E$) capturing the exact execution progression of middlewares from `ENTRY` to `MIDDLEWARE_N`, `CONTROLLER_HANDLER`, and `EXIT`.
 - **CFG Visualizers & Exporters:** Generates instant terminal ASCII flowcharts, Graphviz DOT representations, and Mermaid diagram code for reports and slides.
+
+### Phase 3: Backend Security Analysis & Dominator Verifier (Aaditya Jaiswal)
+- **Formal Dominator Tree Computation:** Computes $Dom(n)$ and immediate dominator $idom(n)$ using the classical iterative forward dataflow equations:
+  $$Dom(n) = \{n\} \cup \left( \bigcap_{p \in Pred(n)} Dom(p) \right)$$
+- **Invariant Rule 1 (Auth-Before-Sensitive):** Statically proves whether a sensitive endpoint (`DELETE`, `PUT`, `PATCH`, `/admin`, `/purge`, etc.) is guarded by an authentication checkpoint ($A \text{ dom } H$).
+- **Invariant Rule 2 (Misordered Security Checkpoints):** Detects execution order inversions where a security guard is mistakenly registered after a business logic controller in the route handler chain.
+- **Invariant Rule 3 (Unprotected Administrative Mounts):** Ensures all routes grouped under administrative prefix trees enforce privileged authorization.
+- **Invariant Rule 4 (Brute-Force Rate Limiting):** Ensures public authentication endpoints (`/login`, `/register`) enforce rate-limiting throttles before processing credentials.
+- **Diagnostic Vulnerability Reporter:** Formats vulnerability diagnostic cards with severity badges (`CRITICAL`, `HIGH`, `MEDIUM`, `LOW`), formal invariant definitions, control-flow execution traces with highlighted vulnerable gaps, and actionable code remediation steps.
 
 ---
 
@@ -81,35 +101,58 @@ ExpressFlow/
 ├── tsconfig.json                # TypeScript compiler configuration
 ├── .gitignore                   # Standard ignore rules (node_modules, dist, etc.)
 ├── README.md                    # Project documentation
-├── FRONTEND_IMPLEMENTATION.md   # Complete architectural & implementation specification
+├── FINAL_PROJECT_REPORT.md      # Comprehensive academic & technical project report
+├── FRONTEND_IMPLEMENTATION.md   # Complete frontend architectural specification
 │
 ├── src/
-│   ├── index.ts                 # CLI Entry point
+│   ├── index.ts                 # CLI Entry point & orchestrator (Phases 1, 2, 3)
 │   │
 │   ├── shared/
 │   │   └── types/
 │   │       └── manifest.ts      # Shared Intermediate Representation (IR) contract
 │   │
-│   └── frontend/                # Frontend Pipeline Implementation (Krishna)
-│       ├── index.ts             # Public API entry point
-│       ├── parser/
-│       │   ├── astParser.ts     # Location-aware Babel parser wrapper
-│       │   └── fileLoader.ts    # Recursive file crawler and disk reader
-│       ├── scope/
-│       │   └── symbolTracker.ts # Identifies Express applications and router instances
-│       ├── visitor/
-│       │   ├── argumentExtractor.ts  # Route path & middleware array deconstructor
-│       │   ├── routeVisitor.ts       # AST visitor for route registrations and mounts
-│       │   └── exportTracker.ts      # CommonJS and ESM router export tracker
-│       └── serializer/
-│           └── manifestBuilder.ts    # Emits the unified JSON IR manifest
+│   ├── frontend/                # Phase 1: Frontend AST Pipeline (Krishna)
+│   │   ├── index.ts             # Frontend public API
+│   │   ├── parser/
+│   │   │   ├── astParser.ts     # Location-aware Babel parser wrapper
+│   │   │   └── fileLoader.ts    # Recursive file crawler and disk reader
+│   │   ├── scope/
+│   │   │   └── symbolTracker.ts # Identifies Express applications and router instances
+│   │   ├── visitor/
+│   │   │   ├── argumentExtractor.ts  # Route path & middleware array deconstructor
+│   │   │   ├── routeVisitor.ts       # AST visitor for route registrations and mounts
+│   │   │   └── exportTracker.ts      # CommonJS and ESM router export tracker
+│   │   └── serializer/
+│   │       └── manifestBuilder.ts    # Emits the unified JSON IR manifest
+│   │
+│   └── middleend/               # Phase 2 & 3: Middle-End CFG & Security Verifier (Aaditya Jaiswal)
+│       ├── index.ts             # Middle-end public API
+│       ├── types/
+│       │   └── cfg.ts           # CFG node, edge, and graph definitions
+│       ├── resolver/
+│       │   ├── moduleResolver.ts     # Cross-file CommonJS/ESM module linker
+│       │   └── routeComposer.ts      # Hierarchical URL mount path calculator
+│       ├── cfg/
+│       │   └── cfgBuilder.ts         # Directed Control-Flow Graph synthesis engine
+│       ├── visualizer/
+│       │   ├── asciiGraph.ts         # Terminal ASCII flowchart renderer
+│       │   ├── dotGenerator.ts       # Graphviz DOT format exporter
+│       │   └── mermaidGenerator.ts   # Mermaid markdown diagram generator
+│       ├── analysis/
+│       │   ├── dominatorTree.ts      # Formal iterative dominator tree algorithm
+│       │   ├── securityModel.ts      # Security violation definitions & rules
+│       │   └── securityChecker.ts    # Invariant verification engine
+│       └── reporter/
+│           └── terminalReporter.ts   # Diagnostic security report renderer
 │
-├── dist/                        # Compiled JavaScript output (from tsc)
-├── manifest.json                # Generated Intermediate Representation (IR) file
-└── test/
-    ├── fixtures/
-    │   └── sample-app.js        # Test Express fixture with complex routes
-    └── run-test.js              # Automated test verification suite
+├── test/
+│   ├── fixtures/
+│   │   ├── sample-app.js        # Single-file complex routing test fixture
+│   │   ├── modular-app/         # Multi-file secure modular Express architecture
+│   │   └── vulnerable-app/      # Realistic Express application with intentional flaws
+│   ├── middleend.test.ts        # Unit test suite for CFG construction & resolvers
+│   ├── security.test.ts         # Unit test suite for Dominator Trees & Invariants
+│   └── run-test.js              # Complete 18-test automated verification runner
 ```
 
 ---
@@ -122,9 +165,8 @@ ExpressFlow/
 
 ### Installation
 
-Clone the repository and install dependencies:
 ```bash
-git clone <repository-url>
+git clone https://github.com/krishnagupta7884/ExpressFlow.git
 cd ExpressFlow
 npm install
 ```
@@ -138,121 +180,106 @@ npm run build
 
 ### Running Tests
 
-Run the automated test suite against the sample test fixture:
+Execute the automated test suite verifying all 18 test cases across all three compiler phases:
 ```bash
 npm test
 ```
 
 Expected output:
 ```
-=================================================
-EXPRESSFLOW AUTOMATED TEST SUITE (REVIEW 2 - 75%)
-=================================================
+================================================================================
+ EXPRESSFLOW AUTOMATED COMPREHENSIVE TEST SUITE (100% IMPLEMENTATION)
+================================================================================
 
 >>> PART 1: FRONTEND PIPELINE (Lexical, AST & Manifest IR) <<<
-
 [Test 1] Parsing fixture and analyzing AST...
-[Test 2] Verifying Discovered Routers...
-  ✓ Correctly identified 'app' (APPLICATION) and 'userRouter' (ROUTER)
-[Test 3] Verifying Extracted Routes...
-  ✓ Correctly extracted global middleware: app.use(express.json())
-  ✓ Correctly extracted GET /health with inline callback parameters [req, res]
-  ✓ Correctly flattened nested middleware arrays in POST /checkout (4 middlewares)
-  ✓ Correctly extracted sub-router DELETE /:id route with checkAdmin guard
-[Test 4] Verifying Sub-Router Mounts...
-  ✓ Correctly captured mount: app.use('/api/users', userRouter)
-[Test 5] Verifying Exports...
-  ✓ Correctly tracked default export of 'app'
-[Test 6] Verifying Full Project Manifest Builder...
-  ✓ Successfully built manifest across project (4 source files indexed)
+[Test 2] Verifying Discovered Routers... (APPLICATION & ROUTER)
+[Test 3] Verifying Extracted Routes... (Global, static, nested arrays, callbacks)
+[Test 4] Verifying Sub-Router Mounts... (app.use('/api/users', userRouter))
+[Test 5] Verifying Exports... (CommonJS module.exports)
+[Test 6] Verifying Full Project Manifest Builder... (8 files indexed)
 
 >>> PART 2: MIDDLE-END ENGINE (Module Resolution, Route Composition & CFG) <<<
-
 [Test 7] Running Middle-End Pipeline on sample-app fixture...
-  ✓ Correctly identified root application 'app'
 [Test 8] Verifying Route Hierarchy & Prefix Composition...
-  ✓ Correctly composed global + route middlewares in linear order
-  ✓ Correctly composed mount path: '/api/users' + '/:id' -> '/api/users/:id'
 [Test 9] Verifying Control-Flow Graph (CFG) Construction & Graph Invariants...
-  ✓ Verified directed graph topology: ENTRY -> M0 -> M1 -> M2 -> M3 -> HANDLER -> EXIT
 [Test 10] Verifying Cross-File Symbol & Module Resolution (modular-app)...
-  ✓ Linked cross-file modules across 3 routers
 [Test 11] Verifying Cross-File Route Composition...
-  ✓ Successfully linked /api/admin/database and /api/users/profile across separate files
 [Test 12] Verifying CFG Visualization Generation (ASCII, DOT, Mermaid)...
-  ✓ Successfully generated ASCII, Graphviz DOT, and Mermaid diagram exports
 
-=================================================
-🎉 ALL TESTS PASSED! 75% IMPLEMENTATION IS READY!
-=================================================
+>>> PART 3: BACKEND SECURITY ENGINE (Dominator Reachability & Invariants) <<<
+[Test 13] Verifying Graph Dominator Tree Construction on CFG...
+[Test 14] Auditing Vulnerable Project Target (vulnerable-app)...
+[Test 15] Verifying Invariant Rule 1: Auth-Before-Sensitive...
+[Test 16] Verifying Invariant Rule 2: Misordered Security Checkpoint...
+[Test 17] Verifying Invariant Rule 4: Brute-Force Rate Limiting...
+[Test 18] Verifying Clean Project (modular-app) Passes Security Audit...
+
+================================================================================
+🎉 ALL 18 TESTS PASSED! EXPRESSFLOW 100% IMPLEMENTATION IS COMPLETE!
+================================================================================
 ```
 
 ---
 
 ## 💻 CLI Usage
 
-You can run ExpressFlow directly on any directory containing Express.js source code:
+Run ExpressFlow on any Express.js codebase:
 
 ```bash
-# Analyze project and display composed routes and CFG summary table:
-node dist/index.js ./test/fixtures/modular-app
+# Full static security audit (Endpoint table + Diagnostic Vulnerability Report):
+node dist/index.js ./test/fixtures/vulnerable-app
 
-# Render full visual ASCII Control-Flow Graphs (CFGs):
-node dist/index.js ./test/fixtures/modular-app --cfg
+# Render visual ASCII Control-Flow Graphs (CFGs) for each route:
+node dist/index.js ./test/fixtures/vulnerable-app --cfg
 
 # Generate Graphviz DOT representations for external visualization:
-node dist/index.js ./test/fixtures/modular-app --dot
+node dist/index.js ./test/fixtures/vulnerable-app --dot
 
-# Save the Intermediate Representation (IR) Manifest to a JSON file:
-node dist/index.js ./test/fixtures/modular-app ./manifest.json
+# Fail with non-zero exit code on CRITICAL / HIGH security findings (CI/CD integration):
+node dist/index.js ./test/fixtures/vulnerable-app --strict
+
+# Output machine-readable JSON security audit report:
+node dist/index.js ./test/fixtures/vulnerable-app --json
+
+# Run on clean modular application:
+node dist/index.js ./test/fixtures/modular-app
 ```
 
 ---
 
-## 📄 Intermediate Representation (IR) Format
+## 🛡️ Formal Security Verification Model
 
-The frontend produces an IR JSON file conforming to the following structure:
+ExpressFlow translates Express routing definitions into directed Control-Flow Graphs $G = (V, E)$, where $V$ includes `ENTRY`, middleware steps $\{M_0, M_1, \dots, M_k\}$, terminal `ACTION_HANDLER`, and `EXIT`.
 
-```json
-{
-  "version": "1.0.0",
-  "projectRoot": "/path/to/project",
-  "files": [
-    {
-      "filePath": "routes/user.js",
-      "routersDeclared": [
-        {
-          "identifier": "userRouter",
-          "kind": "ROUTER",
-          "loc": { "start": { "line": 3, "column": 6 }, "end": { "line": 3, "column": 35 } }
-        }
-      ],
-      "routeRegistrations": [
-        {
-          "registrationType": "ROUTE",
-          "routerIdentifier": "userRouter",
-          "httpMethod": "DELETE",
-          "path": { "type": "STATIC", "value": "/:id", "raw": "'/:id'", "loc": { ... } },
-          "middlewares": [
-            { "executionOrder": 0, "type": "IDENTIFIER", "name": "checkAdmin", "isInline": false, "loc": { ... } },
-            { "executionOrder": 1, "type": "IDENTIFIER", "name": "deleteUserHandler", "isInline": false, "loc": { ... } }
-          ],
-          "loc": { "start": { "line": 21, "column": 0 }, "end": { "line": 21, "column": 56 } }
-        }
-      ],
-      "mounts": [],
-      "exports": [
-        { "type": "DEFAULT", "localIdentifier": "userRouter", "loc": { ... } }
-      ]
-    }
-  ]
-}
-```
+### Dominance Invariant
+A node $d$ dominates node $n$ ($d \text{ dom } n$) if every path from `ENTRY` to $n$ in $G$ must pass through $d$.
+
+$$\forall p \in \text{Paths}(ENTRY \rightarrow n), \quad d \in p$$
+
+### Enforced Invariant Rules
+
+1. **Rule 1: Auth-Before-Sensitive (`RULE_1_AUTH_BEFORE_SENSITIVE`)**
+   For any route $R$ executing a destructive or sensitive operation (e.g. `DELETE`, `PUT`, `/admin`, `/purge`):
+   $$\exists A \in \text{AuthGuards}(R) \quad \text{such that} \quad A \text{ dom } H$$
+   *If no authenticating guard dominates the handler, a **CRITICAL** vulnerability is flagged.*
+
+2. **Rule 2: Misordered Security Checkpoint (`RULE_2_MISORDERED_SECURITY_GUARD`)**
+   Security checks must precede action handlers in the execution order:
+   $$A \in \text{AuthGuards}(R) \implies \text{executionOrder}(A) < \text{executionOrder}(H)$$
+   *If an authentication guard is placed after an action handler, a **CRITICAL** execution order inversion is flagged.*
+
+3. **Rule 3: Unprotected Admin Mount (`RULE_3_UNPROTECTED_ADMIN_MOUNT`)**
+   All routes registered under administrative prefixes (`/admin`) must enforce role or privilege checks.
+
+4. **Rule 4: Missing Rate Limiting (`RULE_4_MISSING_RATE_LIMIT`)**
+   All public credential entrypoints (e.g., `POST /login`, `POST /register`) must enforce throttling:
+   $$\exists L \in \text{RateLimiters}(R) \quad \text{such that} \quad L \text{ dom } H$$
 
 ---
 
 ## 📚 Course Information
 
 - **Course:** BCSE307P – Compiler Design Lab
-- **Milestone:** Review 2 (75% Implementation Phase — Frontend Pipeline + Middle-End CFG Engine)
+- **Milestone:** Review 3 (100% Final Implementation — AST Frontend + Middle-End CFG Engine + Backend Dominator Security Verifier)
 - **Institution:** Vellore Institute of Technology (VIT)
