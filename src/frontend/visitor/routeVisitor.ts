@@ -56,6 +56,17 @@ export function extractRoutesAndMounts(
       let routerIdentifier = "";
       if (t.isIdentifier(callee.object)) {
         routerIdentifier = callee.object.name;
+      } else if (t.isCallExpression(callee.object)) {
+        // Chained call: e.g. Router().use(...).use(...) or const api = Router().use(...)
+        const varDecl = path.findParent((p) => p.isVariableDeclarator()) as NodePath<t.VariableDeclarator> | null;
+        if (varDecl && t.isIdentifier(varDecl.node.id)) {
+          routerIdentifier = varDecl.node.id.name;
+        } else {
+          const exportDef = path.findParent((p) => p.isExportDefaultDeclaration());
+          if (exportDef) {
+            routerIdentifier = "default";
+          }
+        }
       }
 
       // Check if this object is a recognized Express router or application
@@ -63,7 +74,8 @@ export function extractRoutesAndMounts(
       const isTrackedRouter =
         symbolTable.routerSymbols.has(routerIdentifier) ||
         routerIdentifier === "app" ||
-        routerIdentifier === "router";
+        routerIdentifier === "router" ||
+        routerIdentifier === "default";
 
       if (!isTrackedRouter) {
         return;
@@ -93,7 +105,8 @@ export function extractRoutesAndMounts(
             t.isIdentifier(mwNode) &&
             (symbolTable.routerSymbols.get(mwNode.name) === "ROUTER" ||
               mwNode.name.toLowerCase().includes("router") ||
-              mwNode.name.toLowerCase().includes("routes"))
+              mwNode.name.toLowerCase().includes("routes") ||
+              mwNode.name.toLowerCase().includes("controller"))
           ) {
             mounts.push({
               registrationType: "MOUNT",

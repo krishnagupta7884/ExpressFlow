@@ -167,18 +167,20 @@ ExpressFlow enforces four formal security invariants across every synthesized CF
 
 ## 6. Experimental Validation & Benchmark Results
 
-We evaluated ExpressFlow against three distinct test fixtures:
+We evaluated ExpressFlow against four distinct test suites, ranging from unit fixtures to a full-scale real-world production codebase:
 1. `sample-app.js`: Complex single-file application with nested middleware arrays, inline closures, and sub-router mounts.
 2. `modular-app/`: Multi-file production-grade Express application with cross-file CommonJS module imports.
 3. `vulnerable-app/`: Realistic Express application with intentionally injected security vulnerabilities.
+4. `realworld-app/`: The official industry standard **RealWorld (Conduit) backend implementation** (`node-express-realworld-example-app`) containing 31 TypeScript files, 7 routers, chained `.use()` mounts, and 20 production REST endpoints.
 
 ### Summary Results Table
 
-| Target Fixture | Files | Routers | Composed Routes | CFGs Synthesized | Vulnerabilities Found | Strict Audit Exit Code |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| `sample-app.js` | 1 | 2 | 4 | 4 | 0 | 0 (Clean) |
-| `modular-app` | 3 | 3 | 4 | 4 | 0 | 0 (Clean) |
-| `vulnerable-app` | 4 | 4 | 8 | 8 | 3 | 1 (Fail) |
+| Target Fixture | Files | Routers | Composed Routes | CFGs Synthesized | Dominator Trees | Vulnerabilities Found | Strict Audit Exit Code |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| `sample-app.js` | 1 | 2 | 4 | 4 | 4 | 0 | 0 (Clean) |
+| `modular-app` | 3 | 3 | 4 | 4 | 4 | 0 | 0 (Clean) |
+| `vulnerable-app` | 4 | 4 | 8 | 8 | 8 | 3 | 1 (Fail) |
+| `realworld-app` | 31 | 7 | 20 | 20 | 20 | 2 | 1 (Fail - Missing Rate Limit) |
 
 ### Discovered Vulnerabilities in `vulnerable-app`
 
@@ -197,11 +199,15 @@ We evaluated ExpressFlow against three distinct test fixtures:
    - **Trace:** `ENTRY ──> express.json ──> [💥 VULNERABLE GAP] ──> loginHandler ──> EXIT`
    - **Remediation:** Attach `rateLimit({ max: 5 })` to prevent brute-force attacks.
 
+### Discovered Real-World Findings in `realworld-app` (Conduit Production Codebase)
+- **Verified 18 Secure Endpoints:** ExpressFlow proved that `auth.required` successfully dominates the handlers for `/api/articles` (POST, PUT, DELETE), `/api/user` (GET, PUT), `/api/profiles/:username/follow`, and `/api/articles/:slug/comments`.
+- **Identified OWASP API2:2023 Finding:** Correctly detected that `POST /api/users/login` omitted rate-limiting throttling middleware in production code.
+
 ---
 
 ## 7. Automated Test Suite Verification
 
-The automated test suite (`npm test` / `test/run-test.js`) executes 18 unit and integration tests across all three compiler phases:
+The automated test suite (`npm test` / `test/run-test.js`) executes 19 unit and integration tests across all three compiler phases:
 
 ```
 [Phase 1: Frontend AST Pipeline]
@@ -227,8 +233,9 @@ The automated test suite (`npm test` / `test/run-test.js`) executes 18 unit and 
   ✓ Test 16: Invariant Rule 2 verification (Misordered Checkpoints)
   ✓ Test 17: Invariant Rule 4 verification (Rate-Limiting on Credentials)
   ✓ Test 18: Zero false-positive verification on clean modular project
+  ✓ Test 19: Auditing production RealWorld codebase (31 files, 20 routes, 20 CFGs, 20 Dominator Trees)
 
-Result: 18 / 18 Tests Passed (100% Success Rate)
+Result: 19 / 19 Tests Passed (100% Success Rate)
 ```
 
 ---

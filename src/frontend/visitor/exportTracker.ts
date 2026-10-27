@@ -11,13 +11,19 @@ export function trackExports(ast: BabelFile): ExportMetadata[] {
   const exports: ExportMetadata[] = [];
 
   traverse(ast, {
-    // 1. ESM: export default router
+    // 1. ESM: export default router or export default Router().use(...)
     ExportDefaultDeclaration(path: NodePath<t.ExportDefaultDeclaration>) {
       const decl = path.node.declaration;
       if (t.isIdentifier(decl)) {
         exports.push({
           type: "DEFAULT",
           localIdentifier: decl.name,
+          loc: toSourceLocation(path.node.loc),
+        });
+      } else if (t.isCallExpression(decl)) {
+        exports.push({
+          type: "DEFAULT",
+          localIdentifier: "default",
           loc: toSourceLocation(path.node.loc),
         });
       }

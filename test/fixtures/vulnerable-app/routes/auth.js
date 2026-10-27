@@ -8,3 +8,4 @@ router.post('/login', loginHandler);
 router.post('/register', rateLimit, registerHandler);
 
 module.exports = router;
+

@@ -109,3 +109,4 @@ export function formatSecurityReport(report: SecurityAnalysisReport): string {
 
   return lines.join("\n");
 }
+

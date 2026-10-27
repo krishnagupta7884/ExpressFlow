@@ -37,3 +37,4 @@ export interface SecurityAnalysisReport {
   violations: SecurityViolation[];
   passed: boolean;
 }
+

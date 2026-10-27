@@ -24,6 +24,23 @@ function toSourceLocation(loc: t.SourceLocation | null | undefined): SourceLocat
 }
 
 /**
+ * Unwinds method chaining (e.g. Router().use(...).use(...)) down to the root expression.
+ * Halts if the call is itself a Router instantiation (e.g. express.Router() or Router()).
+ */
+function unwrapChainedCall(node: t.Expression): t.Expression {
+  let curr = node;
+  while (
+    t.isCallExpression(curr) &&
+    t.isMemberExpression(curr.callee) &&
+    t.isIdentifier(curr.callee.property) &&
+    curr.callee.property.name !== "Router"
+  ) {
+    curr = curr.callee.object as t.Expression;
+  }
+  return curr;
+}
+
+/**
  * Scans an AST to discover Express imports and instances (app and routers).
  */
 export function trackExpressSymbols(ast: BabelFile): SymbolTable {
@@ -102,14 +119,15 @@ export function trackExpressSymbols(ast: BabelFile): SymbolTable {
         return;
       }
 
-      // Check router = express.Router() or Router() or new express.Router()
+      // Check router = express.Router() or Router() or new express.Router() (supports method chaining)
+      const rootExpr = init && t.isExpression(init) ? unwrapChainedCall(init) : init;
       const isRouterCall =
-        init &&
-        (t.isCallExpression(init) || t.isNewExpression(init)) &&
-        ((t.isMemberExpression(init.callee) &&
-          t.isIdentifier(init.callee.property, { name: "Router" })) ||
-          (t.isIdentifier(init.callee) &&
-            (routerImportNames.has(init.callee.name) || init.callee.name === "Router")));
+        rootExpr &&
+        (t.isCallExpression(rootExpr) || t.isNewExpression(rootExpr)) &&
+        ((t.isMemberExpression(rootExpr.callee) &&
+          t.isIdentifier(rootExpr.callee.property, { name: "Router" })) ||
+          (t.isIdentifier(rootExpr.callee) &&
+            (routerImportNames.has(rootExpr.callee.name) || rootExpr.callee.name === "Router")));
 
       if (isRouterCall && t.isIdentifier(id)) {
         routerSymbols.set(id.name, "ROUTER");
@@ -128,6 +146,27 @@ export function trackExpressSymbols(ast: BabelFile): SymbolTable {
         routerDeclarations.push({
           identifier: id.name,
           kind,
+          loc: toSourceLocation(path.node.loc),
+        });
+      }
+    },
+
+    // 3. Detect default export router instantiations: export default Router().use(...)
+    ExportDefaultDeclaration(path: NodePath<t.ExportDefaultDeclaration>) {
+      const decl = path.node.declaration;
+      const rootExpr = decl && t.isExpression(decl) ? unwrapChainedCall(decl) : null;
+      if (
+        rootExpr &&
+        (t.isCallExpression(rootExpr) || t.isNewExpression(rootExpr)) &&
+        ((t.isMemberExpression(rootExpr.callee) &&
+          t.isIdentifier(rootExpr.callee.property, { name: "Router" })) ||
+          (t.isIdentifier(rootExpr.callee) &&
+            (routerImportNames.has(rootExpr.callee.name) || rootExpr.callee.name === "Router")))
+      ) {
+        routerSymbols.set("default", "ROUTER");
+        routerDeclarations.push({
+          identifier: "default",
+          kind: "ROUTER",
           loc: toSourceLocation(path.node.loc),
         });
       }

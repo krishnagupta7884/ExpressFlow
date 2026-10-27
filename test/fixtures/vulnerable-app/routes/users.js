@@ -8,3 +8,4 @@ router.get('/profile', verifyToken, getProfileHandler);
 router.put('/settings', verifyToken, updateSettingsHandler);
 
 module.exports = router;
+

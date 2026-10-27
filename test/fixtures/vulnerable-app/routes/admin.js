@@ -11,3 +11,4 @@ router.post('/drop-database', dropDatabaseHandler, verifyAdmin);
 router.post('/maintenance', verifyAdmin, maintenanceHandler);
 
 module.exports = router;
+

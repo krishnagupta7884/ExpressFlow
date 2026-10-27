@@ -286,3 +286,4 @@ export function checkSecurityInvariants(cfgs: RouteCfg[]): SecurityAnalysisRepor
     passed: violations.length === 0,
   };
 }
+
