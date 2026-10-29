@@ -64,8 +64,14 @@ function main() {
   const manifest = buildManifestForProject(targetDir);
   const diag = manifest.diagnostics;
 
+  // Check for optional project configuration (expressflow.config.json)
+  const config = loadProjectConfig(targetDir, manifest.diagnostics);
+  if (config) {
+    console.log(`  [Config] Loaded custom route policy from expressflow.config.json`);
+  }
+
   if (diag.status === "INCOMPLETE") {
-    console.log(`  ✖ Analysis Incomplete: ${diag.failedFiles} file(s) failed during parsing (${diag.analyzedFiles} succeeded).`);
+    console.log(`  ✖ Analysis Incomplete: ${diag.failedFiles} file(s) failed during analysis (${diag.analyzedFiles} succeeded).`);
     if (diag.errors.length > 0) {
       for (const err of diag.errors) {
         const locStr = err.loc ? `:${err.loc.start.line}:${err.loc.start.column}` : "";
@@ -77,12 +83,6 @@ function main() {
     console.log(`  ℹ Notice: ${diag.statusMessage}\n`);
   } else {
     console.log(`  ✔ Successfully indexed ${manifest.files.length} source file(s) into Intermediate Representation.\n`);
-  }
-
-  // Check for optional project configuration (expressflow.config.json)
-  const config = loadProjectConfig(targetDir);
-  if (config) {
-    console.log(`  [Config] Loaded custom route policy from expressflow.config.json`);
   }
 
   console.log(`[Phase 2] ⚙️  Middle-End CFG Engine`);

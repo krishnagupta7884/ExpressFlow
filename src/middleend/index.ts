@@ -28,7 +28,7 @@ import { RouteCfg } from "./cfg/cfgModel";
 import { computeDominatorTree, DominatorTree } from "./analysis/dominatorTree";
 import { checkSecurityInvariants } from "./analysis/securityChecker";
 import { SecurityAnalysisReport } from "./analysis/securityModel";
-import { ExpressFlowConfig } from "./analysis/routePolicy";
+import { ExpressFlowConfig, loadProjectConfig } from "./analysis/routePolicy";
 
 export interface MiddleEndAnalysisResult {
   resolution: ProjectResolutionContext;
@@ -60,8 +60,14 @@ export function runMiddleEndPipeline(
     dominatorTrees.set(cfg.routeId, computeDominatorTree(cfg));
   }
 
+  // Load configuration if not explicitly provided
+  let effectiveConfig = config;
+  if (!effectiveConfig && manifest.projectRoot) {
+    effectiveConfig = loadProjectConfig(manifest.projectRoot, manifest.diagnostics);
+  }
+
   // Step 5: Verify security invariants using dominator reachability analysis
-  const securityReport = checkSecurityInvariants(cfgs, config, manifest.diagnostics);
+  const securityReport = checkSecurityInvariants(cfgs, effectiveConfig, manifest.diagnostics);
 
   return {
     resolution,

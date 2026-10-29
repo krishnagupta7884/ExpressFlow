@@ -11,6 +11,7 @@ const {
   checkSecurityInvariants,
   buildRouteCfg,
   loadProjectConfig,
+  validateExpressFlowConfig,
   toAscii,
   toDot,
   toMermaid,
@@ -529,6 +530,236 @@ assert.ok(unprotectedVio, "Must flag genuinely unprotected DELETE route");
 assert.strictEqual(unprotectedVio.severity, "CRITICAL");
 console.log("  ✓ Correctly flagged genuinely unprotected sensitive handler (Severity: CRITICAL)");
 
+// =============================================================================
+// PART 7: CONFIGURATION RELIABILITY & ERROR DIAGNOSTICS SUITE
+// =============================================================================
+console.log("\n>>> PART 7: CONFIGURATION RELIABILITY & ERROR DIAGNOSTICS <<<");
+
+// Test 37: A valid configuration file loads normally
+console.log("\n[Test 37] Verifying Valid Configuration File Loads Normally...");
+const validConfigDir = path.resolve(__dirname, "fixtures/custom-policy-app");
+const validDiagHolder = {
+  status: "COMPLETE",
+  statusMessage: "Initial status",
+  discoveredFiles: 1,
+  analyzedFiles: 1,
+  failedFiles: 0,
+  errors: [],
+};
+const validConfig = loadProjectConfig(validConfigDir, validDiagHolder);
+assert.ok(validConfig, "Valid expressflow.config.json must load successfully");
+assert.strictEqual(validConfig.publicRoutes.length, 2, "Expected 2 configured public routes");
+assert.strictEqual(validDiagHolder.status, "COMPLETE", "Diagnostics status must remain COMPLETE for valid config");
+assert.strictEqual(validDiagHolder.failedFiles, 0, "Failed files must remain 0");
+assert.strictEqual(validDiagHolder.errors.length, 0, "No diagnostic errors should be logged for valid config");
+console.log("  ✓ Valid configuration file loads normally with COMPLETE status");
+
+// Test 38: Invalid JSON in configuration marks analysis incomplete
+console.log("\n[Test 38] Verifying Invalid JSON in Configuration File Marks Analysis INCOMPLETE...");
+const invalidConfigDir = path.resolve(__dirname, "fixtures/invalid-config-app");
+
+// 38a: Direct loadProjectConfig call with diagnostics
+const invalidDiagHolder = {
+  status: "COMPLETE",
+  statusMessage: "Initial status",
+  discoveredFiles: 1,
+  analyzedFiles: 1,
+  failedFiles: 0,
+  errors: [],
+};
+const invalidConfig = loadProjectConfig(invalidConfigDir, invalidDiagHolder);
+assert.strictEqual(invalidConfig, undefined, "Invalid config must return undefined");
+assert.strictEqual(invalidDiagHolder.status, "INCOMPLETE", "Diagnostics status must be updated to INCOMPLETE");
+assert.strictEqual(invalidDiagHolder.failedFiles, 1, "Failed files must be incremented to 1");
+const invalidErr = invalidDiagHolder.errors.find((e) => e.filePath.includes("expressflow.config.json"));
+assert.ok(invalidErr, "Structured diagnostic error must be recorded for expressflow.config.json");
+assert.ok(invalidErr.error.includes("Invalid or unreadable configuration file"), "Diagnostic must describe config failure");
+
+// 38b: Full project analysis pipeline marks status INCOMPLETE while preserving valid route findings
+const invalidManifest = buildManifestForProject(invalidConfigDir);
+assert.strictEqual(invalidManifest.diagnostics.status, "INCOMPLETE", "Project manifest must be marked INCOMPLETE");
+assert.strictEqual(invalidManifest.files.length, 1, "app.js must still be parsed successfully");
+
+const invalidResult = runMiddleEndPipeline(invalidManifest);
+const invalidReport = invalidResult.securityReport;
+assert.strictEqual(invalidReport.status, "INCOMPLETE", "Security analysis report status must be INCOMPLETE");
+assert.strictEqual(invalidReport.passed, false, "Audit cannot pass when configuration is invalid");
+// Verify findings from app.js are preserved!
+assert.strictEqual(invalidReport.vulnerableRoutes, 1, "Vulnerable DELETE /api/admin/system finding must be preserved");
+const deleteViolation = invalidReport.violations.find((v) => v.routeId === "DELETE /api/admin/system");
+assert.ok(deleteViolation, "Must still report security findings from successfully analyzed source files");
+console.log("  ✓ Invalid JSON in configuration marks analysis INCOMPLETE and preserves source route findings");
+
+// Test 39: Missing configuration file remains acceptable when optional
+console.log("\n[Test 39] Verifying Missing Configuration File Remains Acceptable (Optional)...");
+const noConfigDir = path.resolve(__dirname, "fixtures/modular-app");
+const missingDiagHolder = {
+  status: "COMPLETE",
+  statusMessage: "Initial status",
+  discoveredFiles: 4,
+  analyzedFiles: 4,
+  failedFiles: 0,
+  errors: [],
+};
+const missingConfig = loadProjectConfig(noConfigDir, missingDiagHolder);
+assert.strictEqual(missingConfig, undefined, "Missing config must return undefined");
+assert.strictEqual(missingDiagHolder.status, "COMPLETE", "Diagnostics status must remain COMPLETE when config is missing");
+assert.strictEqual(missingDiagHolder.failedFiles, 0, "No failed files when config is absent");
+assert.strictEqual(missingDiagHolder.errors.length, 0, "No diagnostic errors when config is absent");
+console.log("  ✓ Missing configuration file is accepted cleanly without diagnostics error");
+
+// Test 40: CLI returns non-zero exit code for invalid configuration
+console.log("\n[Test 40] Verifying CLI Returns Non-Zero Exit Code for Invalid Configuration...");
+const cliEntrypoint = path.resolve(__dirname, "../dist/index.js");
+let cliExitCode = 0;
+let cliStdout = "";
+try {
+  cliStdout = execSync(`node "${cliEntrypoint}" "${invalidConfigDir}"`, {
+    stdio: ["pipe", "pipe", "pipe"],
+  }).toString();
+} catch (err) {
+  cliExitCode = err.status !== undefined ? err.status : 1;
+  cliStdout = (err.stdout ? err.stdout.toString() : "") + (err.stderr ? err.stderr.toString() : "");
+}
+assert.strictEqual(cliExitCode, 1, "CLI must exit with code 1 for invalid configuration");
+assert.ok(
+  cliStdout.includes("Analysis Incomplete") || cliStdout.includes("expressflow.config.json"),
+  "CLI output must clearly display incomplete analysis and config error"
+);
+console.log("  ✓ CLI exited with code 1 and reported incomplete audit on invalid configuration");
+
+// Test 41: Runtime schema validation rejects malformed configuration structures
+console.log("\n[Test 41] Verifying Runtime Schema Validation of expressflow.config.json...");
+
+// 41a: Root must be a JSON object
+assert.throws(
+  () => validateExpressFlowConfig(null),
+  /Configuration root must be a JSON object/,
+  "null root must be rejected"
+);
+assert.throws(
+  () => validateExpressFlowConfig(42),
+  /Configuration root must be a JSON object/,
+  "numeric root must be rejected"
+);
+assert.throws(
+  () => validateExpressFlowConfig(["not", "an", "object"]),
+  /Configuration root must be a JSON object/,
+  "array root must be rejected"
+);
+
+// 41b: publicRoutes must be an array of strings (e.g. {"publicRoutes": 42})
+assert.throws(
+  () => validateExpressFlowConfig({ publicRoutes: 42 }),
+  /Field 'publicRoutes' must be an array of strings/,
+  "non-array publicRoutes must be rejected"
+);
+assert.throws(
+  () => validateExpressFlowConfig({ publicRoutes: [42] }),
+  /Field 'publicRoutes\[0\]' must be a string/,
+  "array of non-strings for publicRoutes must be rejected"
+);
+
+// 41c: policies must be an array of objects (e.g. {"policies": {}})
+assert.throws(
+  () => validateExpressFlowConfig({ policies: {} }),
+  /Field 'policies' must be an array of policy rule objects/,
+  "object for policies must be rejected"
+);
+assert.throws(
+  () => validateExpressFlowConfig({ policies: ["not-an-object"] }),
+  /Policy rule at 'policies\[0\]' must be an object/,
+  "array of non-objects for policies must be rejected"
+);
+
+// 41d: Policy rule with invalid path type (e.g. {"policies": [{"path": 42}]})
+assert.throws(
+  () => validateExpressFlowConfig({ policies: [{ path: 42 }] }),
+  /must have a valid 'path'/,
+  "policy rule with numeric path must be rejected"
+);
+assert.throws(
+  () => validateExpressFlowConfig({ policies: [{}] }),
+  /must have a valid 'path'/,
+  "policy rule with missing path must be rejected"
+);
+
+// 41e: authEntrypoints must be an array of strings (e.g. {"authEntrypoints": [42]})
+assert.throws(
+  () => validateExpressFlowConfig({ authEntrypoints: [42] }),
+  /Field 'authEntrypoints\[0\]' must be a string/,
+  "authEntrypoints containing non-strings must be rejected"
+);
+assert.throws(
+  () => validateExpressFlowConfig({ authEntrypoints: "not-an-array" }),
+  /Field 'authEntrypoints' must be an array of strings/,
+  "non-array authEntrypoints must be rejected"
+);
+
+// 41f: Unsupported HTTP method and non-boolean flags
+assert.throws(
+  () => validateExpressFlowConfig({ policies: [{ path: "/api", method: "INVALID_METHOD" }] }),
+  /unsupported HTTP method/,
+  "unsupported HTTP method in policy rule must be rejected"
+);
+assert.throws(
+  () => validateExpressFlowConfig({ policies: [{ path: "/api", isPublic: "true" }] }),
+  /must be a boolean/,
+  "string instead of boolean in policy rule must be rejected"
+);
+console.log("  ✓ Runtime schema validation successfully rejects all malformed config patterns");
+
+// Test 42: Analysis on project with invalid schema preserves route findings and marks status INCOMPLETE
+console.log("\n[Test 42] Verifying Pipeline on Project with Schema Error ({\"publicRoutes\": 42})...");
+const invalidSchemaDir = path.resolve(__dirname, "fixtures/invalid-schema-app");
+const invalidSchemaManifest = buildManifestForProject(invalidSchemaDir);
+
+assert.strictEqual(invalidSchemaManifest.diagnostics.status, "INCOMPLETE", "Status must be INCOMPLETE");
+assert.strictEqual(invalidSchemaManifest.files.length, 1, "app.js must be parsed");
+assert.ok(
+  invalidSchemaManifest.diagnostics.errors.some(
+    (e) => e.filePath.includes("expressflow.config.json") && e.error.includes("publicRoutes")
+  ),
+  "Must report structured diagnostic for expressflow.config.json with publicRoutes schema failure"
+);
+
+const invalidSchemaResult = runMiddleEndPipeline(invalidSchemaManifest);
+const invalidSchemaReport = invalidSchemaResult.securityReport;
+
+assert.strictEqual(invalidSchemaReport.status, "INCOMPLETE", "Security report must be INCOMPLETE");
+assert.strictEqual(invalidSchemaReport.passed, false, "Audit must not pass on invalid config");
+assert.strictEqual(invalidSchemaReport.vulnerableRoutes, 1, "Must find 1 vulnerable route from app.js");
+const appFinding = invalidSchemaReport.violations.find((v) => v.routeId === "DELETE /api/admin/users");
+assert.ok(appFinding, "DELETE /api/admin/users finding must be preserved despite schema error");
+console.log("  ✓ Successfully preserved source findings and marked status INCOMPLETE without crashing");
+
+// Test 43: CLI reproduction test: {"publicRoutes": 42} exits with code 1 and does not throw TypeError
+console.log("\n[Test 43] Verifying CLI Reproduction on {\"publicRoutes\": 42} Project...");
+let schemaCliExitCode = 0;
+let schemaCliStdout = "";
+try {
+  schemaCliStdout = execSync(`node "${cliEntrypoint}" "${invalidSchemaDir}"`, {
+    stdio: ["pipe", "pipe", "pipe"],
+  }).toString();
+} catch (err) {
+  schemaCliExitCode = err.status !== undefined ? err.status : 1;
+  schemaCliStdout = (err.stdout ? err.stdout.toString() : "") + (err.stderr ? err.stderr.toString() : "");
+}
+assert.strictEqual(schemaCliExitCode, 1, "CLI must exit with code 1 for schema error");
+assert.ok(
+  !schemaCliStdout.includes("TypeError"),
+  "CLI must NOT crash with TypeError on invalid configuration schema"
+);
+assert.ok(
+  schemaCliStdout.includes("Field 'publicRoutes' must be an array of strings"),
+  "CLI output must report exact schema validation error"
+);
+assert.ok(
+  schemaCliStdout.includes("DELETE /api/admin/users"),
+  "CLI output must preserve and display security findings from app.js"
+);
+console.log("  ✓ CLI executed cleanly with exit code 1, reported schema diagnostic, and preserved findings");
+
 console.log("\n================================================================================");
-console.log("🎉 ALL 36 TESTS PASSED! EXPRESSFLOW ANALYSIS RELIABILITY FULLY VERIFIED!");
+console.log("🎉 ALL 43 TESTS PASSED! EXPRESSFLOW CONFIG VALIDATION FULLY VERIFIED!");
 console.log("================================================================================");

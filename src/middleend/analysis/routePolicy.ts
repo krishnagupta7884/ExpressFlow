@@ -1,7 +1,10 @@
 import * as fs from "fs";
 import * as path from "path";
-import { HttpMethod } from "../../shared/types/manifest";
+import { AnalysisDiagnostics, FileDiagnostic, HttpMethod } from "../../shared/types/manifest";
 import { RouteCfg } from "../cfg/cfgModel";
+import { validateExpressFlowConfig } from "../../shared/configValidation";
+
+export { validateExpressFlowConfig };
 
 export interface RoutePolicyRule {
   /** HTTP method ("GET", "POST", etc.) or "*" for any method */
@@ -29,20 +32,74 @@ export interface ExpressFlowConfig {
   authEntrypoints?: string[];
 }
 
+export interface ConfigLoadResult {
+  config?: ExpressFlowConfig;
+  diagnostic?: FileDiagnostic;
+}
+
 /**
  * Attempts to load an optional `expressflow.config.json` from a project directory.
+ * If the configuration file exists but is unreadable or malformed, it records a
+ * structured diagnostic and updates diagnostics status to INCOMPLETE.
  */
-export function loadProjectConfig(projectRoot: string): ExpressFlowConfig | undefined {
+export function loadProjectConfig(
+  projectRoot: string,
+  diagnostics?: AnalysisDiagnostics
+): ExpressFlowConfig | undefined {
   const configPath = path.join(projectRoot, "expressflow.config.json");
-  if (fs.existsSync(configPath)) {
-    try {
-      const content = fs.readFileSync(configPath, "utf-8");
-      return JSON.parse(content) as ExpressFlowConfig;
-    } catch (err) {
-      console.warn(`[ExpressFlow] Warning: Failed to parse configuration file at ${configPath}:`, err);
-    }
+  if (!fs.existsSync(configPath)) {
+    return undefined;
   }
-  return undefined;
+
+  try {
+    const content = fs.readFileSync(configPath, "utf-8");
+    const parsed = JSON.parse(content);
+    validateExpressFlowConfig(parsed);
+    return parsed as ExpressFlowConfig;
+  } catch (err: any) {
+    const errorMsg = `Invalid or unreadable configuration file: ${err?.message || String(err)}`;
+    const relativePath =
+      path.relative(projectRoot, configPath).replace(/\\/g, "/") || "expressflow.config.json";
+    const diag: FileDiagnostic = {
+      filePath: relativePath,
+      error: errorMsg,
+    };
+
+    if (diagnostics) {
+      const alreadyReported = diagnostics.errors.some((e) => e.filePath === relativePath);
+      if (!alreadyReported) {
+        diagnostics.errors.push(diag);
+        diagnostics.failedFiles += 1;
+        diagnostics.status = "INCOMPLETE";
+        diagnostics.statusMessage = diagnostics.statusMessage
+          ? `${diagnostics.statusMessage} Invalid configuration file: ${relativePath}.`
+          : errorMsg;
+      }
+    }
+
+    return undefined;
+  }
+}
+
+/**
+ * Helper to load project config and return both config and any diagnostic.
+ */
+export function loadProjectConfigWithDiagnostic(
+  projectRoot: string
+): ConfigLoadResult {
+  const diagHolder: AnalysisDiagnostics = {
+    status: "COMPLETE",
+    statusMessage: "",
+    discoveredFiles: 0,
+    analyzedFiles: 0,
+    failedFiles: 0,
+    errors: [],
+  };
+  const config = loadProjectConfig(projectRoot, diagHolder);
+  return {
+    config,
+    diagnostic: diagHolder.errors[0],
+  };
 }
 
 /**
@@ -165,21 +222,21 @@ export function isPublicRoute(cfg: RouteCfg, config?: ExpressFlowConfig): boolea
   const normPath = normalizeUrlPath(cfg.fullPath);
 
   // 1. User-configured public routes list
-  if (config?.publicRoutes) {
+  if (Array.isArray(config?.publicRoutes)) {
     for (const spec of config.publicRoutes) {
-      if (matchesSpecifier(spec, cfg.method, normPath)) {
+      if (typeof spec === "string" && matchesSpecifier(spec, cfg.method, normPath)) {
         return true;
       }
     }
   }
 
   // 2. User-configured policy rules
-  if (config?.policies) {
+  if (Array.isArray(config?.policies)) {
     for (const rule of config.policies) {
-      if (rule.method && rule.method !== "*" && rule.method !== cfg.method) {
+      if (rule && rule.method && rule.method !== "*" && rule.method !== cfg.method) {
         continue;
       }
-      if (matchesPathPattern(rule.path, normPath)) {
+      if (rule && rule.path && matchesPathPattern(rule.path, normPath)) {
         if (rule.isPublic === true) return true;
         if (rule.isPublic === false || rule.requiresAuth === true) return false;
       }
@@ -225,20 +282,20 @@ export function isAuthEntrypoint(cfg: RouteCfg, config?: ExpressFlowConfig): boo
   const normPath = normalizeUrlPath(cfg.fullPath);
 
   // User-configured entrypoints
-  if (config?.authEntrypoints) {
+  if (Array.isArray(config?.authEntrypoints)) {
     for (const spec of config.authEntrypoints) {
-      if (matchesSpecifier(spec, cfg.method, normPath)) {
+      if (typeof spec === "string" && matchesSpecifier(spec, cfg.method, normPath)) {
         return true;
       }
     }
   }
 
-  if (config?.policies) {
+  if (Array.isArray(config?.policies)) {
     for (const rule of config.policies) {
-      if (rule.method && rule.method !== "*" && rule.method !== cfg.method) {
+      if (rule && rule.method && rule.method !== "*" && rule.method !== cfg.method) {
         continue;
       }
-      if (matchesPathPattern(rule.path, normPath)) {
+      if (rule && rule.path && matchesPathPattern(rule.path, normPath)) {
         if (rule.isAuthEntrypoint !== undefined) return rule.isAuthEntrypoint;
       }
     }
@@ -262,21 +319,21 @@ export function requiresRateLimiting(cfg: RouteCfg, config?: ExpressFlowConfig):
   const normPath = normalizeUrlPath(cfg.fullPath);
 
   // 1. User-configured authEntrypoints list
-  if (config?.authEntrypoints) {
+  if (Array.isArray(config?.authEntrypoints)) {
     for (const spec of config.authEntrypoints) {
-      if (matchesSpecifier(spec, cfg.method, normPath)) {
+      if (typeof spec === "string" && matchesSpecifier(spec, cfg.method, normPath)) {
         return true;
       }
     }
   }
 
   // 2. User-configured policy rules
-  if (config?.policies) {
+  if (Array.isArray(config?.policies)) {
     for (const rule of config.policies) {
-      if (rule.method && rule.method !== "*" && rule.method !== cfg.method) {
+      if (rule && rule.method && rule.method !== "*" && rule.method !== cfg.method) {
         continue;
       }
-      if (matchesPathPattern(rule.path, normPath)) {
+      if (rule && rule.path && matchesPathPattern(rule.path, normPath)) {
         if (rule.requiresRateLimit !== undefined) return rule.requiresRateLimit;
         if (rule.isAuthEntrypoint === true) return true;
       }
@@ -299,12 +356,12 @@ export function requiresRateLimiting(cfg: RouteCfg, config?: ExpressFlowConfig):
 export function requiresRoleAuthorization(cfg: RouteCfg, config?: ExpressFlowConfig): boolean {
   const normPath = normalizeUrlPath(cfg.fullPath);
 
-  if (config?.policies) {
+  if (Array.isArray(config?.policies)) {
     for (const rule of config.policies) {
-      if (rule.method && rule.method !== "*" && rule.method !== cfg.method) {
+      if (rule && rule.method && rule.method !== "*" && rule.method !== cfg.method) {
         continue;
       }
-      if (matchesPathPattern(rule.path, normPath)) {
+      if (rule && rule.path && matchesPathPattern(rule.path, normPath)) {
         if (rule.requiresRole !== undefined) return rule.requiresRole;
       }
     }
@@ -335,12 +392,12 @@ export function requiresAuthentication(cfg: RouteCfg, config?: ExpressFlowConfig
   const normPath = normalizeUrlPath(cfg.fullPath);
 
   // 1. Explicit user policies
-  if (config?.policies) {
+  if (Array.isArray(config?.policies)) {
     for (const rule of config.policies) {
-      if (rule.method && rule.method !== "*" && rule.method !== cfg.method) {
+      if (rule && rule.method && rule.method !== "*" && rule.method !== cfg.method) {
         continue;
       }
-      if (matchesPathPattern(rule.path, normPath)) {
+      if (rule && rule.path && matchesPathPattern(rule.path, normPath)) {
         if (rule.requiresAuth !== undefined) return rule.requiresAuth;
         if (rule.isPublic === true) return false;
       }

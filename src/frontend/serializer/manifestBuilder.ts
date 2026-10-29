@@ -8,6 +8,7 @@ import {
   SourceFileMetadata,
   SourceLocation,
 } from "../../shared/types/manifest";
+import { validateExpressFlowConfig } from "../../shared/configValidation";
 import { parseSourceCode } from "../parser/astParser";
 import { discoverSourceFiles, readSourceFile } from "../parser/fileLoader";
 import { trackExpressSymbols } from "../scope/symbolTracker";
@@ -137,6 +138,23 @@ export function buildManifestForProject(
     }
   }
 
+  // 3b. Validate optional expressflow.config.json if present
+  const configPath = path.join(absoluteRoot, "expressflow.config.json");
+  if (fs.existsSync(configPath)) {
+    try {
+      const configRaw = fs.readFileSync(configPath, "utf-8");
+      const parsed = JSON.parse(configRaw);
+      validateExpressFlowConfig(parsed);
+    } catch (err: any) {
+      const relativePath =
+        path.relative(absoluteRoot, configPath).replace(/\\/g, "/") || "expressflow.config.json";
+      errors.push({
+        filePath: relativePath,
+        error: `Invalid or unreadable configuration file: ${err?.message || String(err)}`,
+      });
+    }
+  }
+
   // 4. Compute overall completion status
   const discoveredFiles = sourceFiles.length;
   const analyzedFiles = fileMetadatas.length;
@@ -147,7 +165,15 @@ export function buildManifestForProject(
 
   if (failedFiles > 0) {
     status = "INCOMPLETE";
-    statusMessage = `${failedFiles} of ${discoveredFiles} source file(s) failed during analysis. Results are partial.`;
+    const sourceErrors = errors.filter((e) => !e.filePath.endsWith(".json")).length;
+    const configErrors = errors.filter((e) => e.filePath.endsWith(".json")).length;
+    if (sourceErrors > 0 && configErrors > 0) {
+      statusMessage = `${sourceErrors} source file(s) and configuration file failed during analysis. Results are partial.`;
+    } else if (configErrors > 0) {
+      statusMessage = `Configuration file failed to parse. Results are partial.`;
+    } else {
+      statusMessage = `${failedFiles} of ${discoveredFiles} source file(s) failed during analysis. Results are partial.`;
+    }
   } else if (analyzedFiles === 0) {
     status = "INCONCLUSIVE";
     statusMessage = "Zero source files were successfully analyzed.";
