@@ -104,7 +104,7 @@ function main() {
   } else if (securityReport.status === "INCONCLUSIVE") {
     console.log(`  ℹ Security Audit Status: INCONCLUSIVE (0 route CFGs evaluated)\n`);
   } else {
-    console.log(`  ✔ Security Audit Status: ${securityReport.cleanRoutes} Safe | ${securityReport.vulnerableRoutes} Vulnerable\n`);
+    console.log(`  ✔ Security Audit Status: ${securityReport.cleanRoutes} No rule triggered | ${securityReport.vulnerableRoutes} Vulnerable\n`);
   }
 
   // Print Route Summary Table if routes exist

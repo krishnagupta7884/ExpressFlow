@@ -760,6 +760,23 @@ assert.ok(
 );
 console.log("  ✓ CLI executed cleanly with exit code 1, reported schema diagnostic, and preserved findings");
 
+
+// Test 44: Rule 3 (administrative route lacks role guard)
+console.log("\n[Test 44] Verifying Invariant Rule 3: Administrative Role Guard...");
+const rule3Dir = path.resolve(__dirname, "fixtures/rule3-app");
+const rule3Result = runMiddleEndPipeline(buildManifestForProject(rule3Dir));
+const rule3Vio = rule3Result.securityReport.violations.find(
+  (v) => v.ruleId === "RULE_3_UNPROTECTED_ADMIN_MOUNT" && v.routeId === "GET /api/admin/users"
+);
+assert.ok(rule3Vio, "GET /api/admin/users (auth but no role guard) must trigger Rule 3");
+assert.strictEqual(rule3Vio.severity, "HIGH");
+assert.strictEqual(
+  rule3Result.securityReport.violations.filter((v) => v.ruleId === "RULE_1_AUTH_BEFORE_SENSITIVE").length,
+  0,
+  "Authenticated admin route must not also trigger Rule 1"
+);
+console.log("  ✓ Correctly flagged admin route with authentication but no role guard (Severity: HIGH)");
+
 console.log("\n================================================================================");
-console.log("🎉 ALL 43 TESTS PASSED! EXPRESSFLOW CONFIG VALIDATION FULLY VERIFIED!");
+console.log("🎉 ALL 44 TESTS PASSED! EXPRESSFLOW CONFIG VALIDATION FULLY VERIFIED!");
 console.log("================================================================================");

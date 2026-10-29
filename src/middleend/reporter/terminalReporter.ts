@@ -112,7 +112,7 @@ export function formatSecurityReport(report: SecurityAnalysisReport): string {
   lines.push(`╰────────────────────────────────────────────────────────────────────────╯`);
   lines.push(`  Analysis Status:            ${report.status}`);
   lines.push(`  Total Routes Analyzed:      ${report.totalRoutes}`);
-  lines.push(`  Verified Secure Routes:     ${report.cleanRoutes} (${report.totalRoutes > 0 ? Math.round((report.cleanRoutes / report.totalRoutes) * 100) : 0}%)`);
+  lines.push(`  No-Rule-Triggered Routes:  ${report.cleanRoutes} (${report.totalRoutes > 0 ? Math.round((report.cleanRoutes / report.totalRoutes) * 100) : 0}%)`);
   lines.push(`  Vulnerable Routes Detected: ${report.vulnerableRoutes}`);
   lines.push(`  Severity Breakdown:         [CRITICAL: ${report.criticalCount}] [HIGH: ${report.highCount}] [MEDIUM: ${report.mediumCount}] [LOW: ${report.lowCount}]`);
   lines.push("");
@@ -144,7 +144,7 @@ export function formatSecurityReport(report: SecurityAnalysisReport): string {
 
   if (report.passed) {
     lines.push(`================================================================================`);
-    lines.push(`🎉 ALL SECURITY INVARIANTS SATISFIED! NO REACHABILITY VULNERABILITIES DETECTED.`);
+    lines.push(`🎉 NO CONFIGURED RULE TRIGGERED (heuristic result, not a proof of security).`);
     lines.push(`================================================================================\n`);
     return lines.join("\n");
   }
