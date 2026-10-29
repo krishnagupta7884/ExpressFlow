@@ -1,0 +1,10 @@
+{
+  "publicRoutes": [
+    "POST /api/custom-signup",
+    "POST /api/custom-login"
+  ],
+  "authEntrypoints": [
+    "POST /api/custom-login"
+  ]
+}
+

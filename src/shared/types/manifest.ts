@@ -105,9 +105,27 @@ export interface SourceFileMetadata {
   imports?: ImportMetadata[];
 }
 
+export type AnalysisStatus = "COMPLETE" | "INCOMPLETE" | "INCONCLUSIVE";
+
+export interface FileDiagnostic {
+  filePath: string;
+  error: string;
+  loc?: SourceLocation;
+}
+
+export interface AnalysisDiagnostics {
+  status: AnalysisStatus;
+  statusMessage?: string;
+  discoveredFiles: number;
+  analyzedFiles: number;
+  failedFiles: number;
+  errors: FileDiagnostic[];
+}
+
 export interface ExpressFlowManifest {
   version: "1.0.0";
   analyzedAt: string;
   projectRoot: string;
   files: SourceFileMetadata[];
+  diagnostics: AnalysisDiagnostics;
 }

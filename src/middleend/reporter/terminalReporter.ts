@@ -81,15 +81,66 @@ export function formatSecurityReport(report: SecurityAnalysisReport): string {
   lines.push(`└────────────────────────────────────────────────────────────────────────┘`);
   lines.push("");
 
+  // Analysis Completion Status Banner
+  if (report.status === "INCOMPLETE") {
+    lines.push(`╭────────────────────────────────────────────────────────────────────────╮`);
+    lines.push(`│ ⚠️  ANALYSIS STATUS: INCOMPLETE                                         │`);
+    lines.push(`╰────────────────────────────────────────────────────────────────────────╯`);
+    lines.push(`  ${report.statusMessage || "One or more files failed during parsing."}`);
+    lines.push(`  Results represent partial analysis and do NOT constitute a clean audit.`);
+
+    if (report.diagnostics?.errors && report.diagnostics.errors.length > 0) {
+      lines.push(`\n  Failed Files:`);
+      for (const err of report.diagnostics.errors) {
+        const locStr = err.loc ? `:${err.loc.start.line}:${err.loc.start.column}` : "";
+        lines.push(`    ✖ ${err.filePath}${locStr} - ${err.error.split("\n")[0]}`);
+      }
+    }
+    lines.push("");
+  } else if (report.status === "INCONCLUSIVE") {
+    lines.push(`╭────────────────────────────────────────────────────────────────────────╮`);
+    lines.push(`│ ⚠️  ANALYSIS STATUS: INCONCLUSIVE                                       │`);
+    lines.push(`╰────────────────────────────────────────────────────────────────────────╯`);
+    lines.push(`  ${report.statusMessage || "Zero route Control-Flow Graphs were synthesized."}`);
+    lines.push(`  Route security invariants could not be evaluated.`);
+    lines.push("");
+  }
+
   // Summary Metrics Table
   lines.push(`╭────────────────────────────────────────────────────────────────────────╮`);
   lines.push(`│ 📊 SECURITY AUDIT SUMMARY METRICS                                      │`);
   lines.push(`╰────────────────────────────────────────────────────────────────────────╯`);
+  lines.push(`  Analysis Status:            ${report.status}`);
   lines.push(`  Total Routes Analyzed:      ${report.totalRoutes}`);
-  lines.push(`  Verified Secure Routes:     ${report.cleanRoutes} (${report.totalRoutes > 0 ? Math.round((report.cleanRoutes / report.totalRoutes) * 100) : 100}%)`);
+  lines.push(`  Verified Secure Routes:     ${report.cleanRoutes} (${report.totalRoutes > 0 ? Math.round((report.cleanRoutes / report.totalRoutes) * 100) : 0}%)`);
   lines.push(`  Vulnerable Routes Detected: ${report.vulnerableRoutes}`);
   lines.push(`  Severity Breakdown:         [CRITICAL: ${report.criticalCount}] [HIGH: ${report.highCount}] [MEDIUM: ${report.mediumCount}] [LOW: ${report.lowCount}]`);
   lines.push("");
+
+  if (report.status === "INCOMPLETE") {
+    if (report.violations.length === 0) {
+      lines.push(`================================================================================`);
+      lines.push(`⚠️  ANALYSIS INCOMPLETE: 0 VIOLATIONS IN PARSED FILES, BUT SOURCE ERRORS OCCURRED`);
+      lines.push(`================================================================================\n`);
+      return lines.join("\n");
+    } else {
+      lines.push(`================================================================================`);
+      lines.push(`🚨 PARTIAL AUDIT FOUND ${report.violations.length} ISSUE(S) IN SUCCESSFULLY PARSED FILES:`);
+      lines.push(`================================================================================\n`);
+      for (let i = 0; i < report.violations.length; i++) {
+        lines.push(formatViolationCard(report.violations[i], i, report.violations.length));
+        lines.push("");
+      }
+      return lines.join("\n");
+    }
+  }
+
+  if (report.status === "INCONCLUSIVE") {
+    lines.push(`================================================================================`);
+    lines.push(`⚠️  AUDIT INCONCLUSIVE: NO ROUTES EVALUATED. CHECK PROJECT ROUTE CONFIGURATION.`);
+    lines.push(`================================================================================\n`);
+    return lines.join("\n");
+  }
 
   if (report.passed) {
     lines.push(`================================================================================`);

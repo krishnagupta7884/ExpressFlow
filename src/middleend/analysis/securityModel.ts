@@ -1,4 +1,9 @@
-import { HttpMethod, SourceLocation } from "../../shared/types/manifest";
+import {
+  AnalysisDiagnostics,
+  AnalysisStatus,
+  HttpMethod,
+  SourceLocation,
+} from "../../shared/types/manifest";
 
 export type VulnerabilitySeverity = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
 
@@ -26,6 +31,9 @@ export interface SecurityViolation {
 }
 
 export interface SecurityAnalysisReport {
+  status: AnalysisStatus;
+  statusMessage?: string;
+  diagnostics?: AnalysisDiagnostics;
   analyzedAt: string;
   totalRoutes: number;
   cleanRoutes: number;

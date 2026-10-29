@@ -1,11 +1,16 @@
 const assert = require("node:assert");
 const path = require("node:path");
+const fs = require("node:fs");
+const { execSync } = require("node:child_process");
 const {
   readSourceFile,
   analyzeSourceContent,
   buildManifestForProject,
   runMiddleEndPipeline,
   computeDominatorTree,
+  checkSecurityInvariants,
+  buildRouteCfg,
+  loadProjectConfig,
   toAscii,
   toDot,
   toMermaid,
@@ -253,6 +258,277 @@ assert.ok(realworldResult.cfgs.length >= 20, "Should synthesize at least 20 form
 assert.ok(realworldResult.dominatorTrees.size >= 20, "Should compute at least 20 Dominator Trees");
 console.log(`  ✓ Successfully audited production RealWorld codebase (31 files, 20 routes, 20 CFGs, 20 Dominator Trees)`);
 
+// =============================================================================
+// PART 4: PARSING DIAGNOSTICS & ANALYSIS STATUS REGRESSION SUITE (BUG 1)
+// =============================================================================
+console.log("\n>>> PART 4: PARSING DIAGNOSTICS & COMPLETION STATUS (BUG 1) <<<");
+
+console.log("\n[Test 20] Verifying Malformed-Only Project Reports INCOMPLETE...");
+const malformedDir = path.resolve(__dirname, "fixtures/malformed-only");
+const malformedManifest = buildManifestForProject(malformedDir);
+assert.strictEqual(malformedManifest.diagnostics.status, "INCOMPLETE");
+assert.strictEqual(malformedManifest.diagnostics.failedFiles, 1);
+assert.strictEqual(malformedManifest.diagnostics.analyzedFiles, 0);
+assert.ok(malformedManifest.diagnostics.errors.length > 0);
+assert.ok(malformedManifest.diagnostics.errors[0].loc.start.line > 0, "Error diagnostic should capture line coordinate");
+
+const malformedResult = runMiddleEndPipeline(malformedManifest);
+assert.strictEqual(malformedResult.securityReport.status, "INCOMPLETE");
+assert.strictEqual(malformedResult.securityReport.passed, false, "Incomplete analysis must never report passed");
+console.log("  ✓ Correctly classified malformed-only project as INCOMPLETE (passed: false, captured line/col)");
+
+console.log("\n[Test 21] Verifying Mixed Project (1 Valid, 1 Malformed File)...");
+const mixedDir = path.resolve(__dirname, "fixtures/mixed-malformed");
+const mixedManifest = buildManifestForProject(mixedDir);
+assert.strictEqual(mixedManifest.diagnostics.status, "INCOMPLETE");
+assert.strictEqual(mixedManifest.diagnostics.failedFiles, 1);
+assert.strictEqual(mixedManifest.diagnostics.analyzedFiles, 1);
+
+const mixedResult = runMiddleEndPipeline(mixedManifest);
+assert.strictEqual(mixedResult.securityReport.status, "INCOMPLETE");
+assert.strictEqual(mixedResult.securityReport.passed, false);
+assert.ok(mixedResult.composedRoutes.length >= 1, "Should still compose routes from the valid file");
+const mixedViolation = mixedResult.securityReport.violations.find((v) => v.ruleId === "RULE_1_AUTH_BEFORE_SENSITIVE");
+assert.ok(mixedViolation, "Should report security violation from valid file while marking overall audit incomplete");
+console.log("  ✓ Successfully reported findings from valid file while keeping overall status INCOMPLETE");
+
+console.log("\n[Test 22] Verifying Nonexistent Directory Handling...");
+const nonexistentDir = path.resolve(__dirname, "fixtures/does-not-exist");
+const nonexistentManifest = buildManifestForProject(nonexistentDir);
+assert.strictEqual(nonexistentManifest.diagnostics.status, "INCOMPLETE");
+assert.strictEqual(nonexistentManifest.diagnostics.failedFiles, 1);
+const nonexistentResult = runMiddleEndPipeline(nonexistentManifest);
+assert.strictEqual(nonexistentResult.securityReport.status, "INCOMPLETE");
+assert.strictEqual(nonexistentResult.securityReport.passed, false);
+console.log("  ✓ Correctly reported nonexistent path as INCOMPLETE with passed: false");
+
+console.log("\n[Test 23] Verifying Empty Directory Handling...");
+const emptyDir = path.resolve(__dirname, "fixtures/empty-dir");
+if (!fs.existsSync(emptyDir)) fs.mkdirSync(emptyDir, { recursive: true });
+const emptyManifest = buildManifestForProject(emptyDir);
+assert.strictEqual(emptyManifest.diagnostics.status, "INCONCLUSIVE");
+const emptyResult = runMiddleEndPipeline(emptyManifest);
+assert.strictEqual(emptyResult.securityReport.status, "INCONCLUSIVE");
+assert.strictEqual(emptyResult.securityReport.passed, false, "Empty directory must never report clean security audit");
+console.log("  ✓ Correctly reported empty directory as INCONCLUSIVE with passed: false");
+
+console.log("\n[Test 24] Verifying Project With Valid Source But No Routes (INCONCLUSIVE)...");
+const noRoutesDir = path.resolve(__dirname, "fixtures/no-routes");
+const noRoutesManifest = buildManifestForProject(noRoutesDir);
+assert.strictEqual(noRoutesManifest.diagnostics.status, "COMPLETE");
+assert.strictEqual(noRoutesManifest.diagnostics.analyzedFiles, 1);
+assert.strictEqual(noRoutesManifest.diagnostics.failedFiles, 0);
+
+const noRoutesResult = runMiddleEndPipeline(noRoutesManifest);
+assert.strictEqual(noRoutesResult.cfgs.length, 0);
+assert.strictEqual(noRoutesResult.securityReport.status, "INCONCLUSIVE");
+assert.strictEqual(noRoutesResult.securityReport.passed, false, "0 route CFGs must report INCONCLUSIVE, not passed");
+console.log("  ✓ Correctly reported project without Express routes as INCONCLUSIVE");
+
+console.log("\n[Test 25] Verifying CLI Exit Code Rules...");
+// Incomplete analysis must exit with 1 (even without --strict)
+let malformedExitCode = 0;
+try {
+  execSync(`node "${path.resolve(__dirname, '../dist/index.js')}" "${malformedDir}"`, { stdio: "pipe" });
+} catch (err) {
+  malformedExitCode = err.status;
+}
+assert.strictEqual(malformedExitCode, 1, "CLI must exit 1 on INCOMPLETE analysis without --strict");
+
+// Clean project must exit 0 without --strict, and 0 with --strict
+const cleanExit = execSync(`node "${path.resolve(__dirname, '../dist/index.js')}" "${path.resolve(__dirname, 'fixtures/modular-app')}"`, { stdio: "pipe" });
+assert.ok(cleanExit, "Clean project without --strict must exit 0");
+
+const cleanStrictExit = execSync(`node "${path.resolve(__dirname, '../dist/index.js')}" "${path.resolve(__dirname, 'fixtures/modular-app')}" --strict`, { stdio: "pipe" });
+assert.ok(cleanStrictExit, "Clean project with --strict must exit 0");
+
+// Inconclusive project without --strict exits 0, with --strict exits 1
+const noRoutesExit = execSync(`node "${path.resolve(__dirname, '../dist/index.js')}" "${noRoutesDir}"`, { stdio: "pipe" });
+assert.ok(noRoutesExit, "Inconclusive project without --strict exits 0");
+
+let noRoutesStrictExit = 0;
+try {
+  execSync(`node "${path.resolve(__dirname, '../dist/index.js')}" "${noRoutesDir}" --strict`, { stdio: "pipe" });
+} catch (err) {
+  noRoutesStrictExit = err.status;
+}
+assert.strictEqual(noRoutesStrictExit, 1, "Inconclusive project with --strict must exit 1");
+console.log("  ✓ Verified CLI exit code invariants (INCOMPLETE=1, Strict failure=1, Clean=0)");
+
+// =============================================================================
+// PART 5: ROUTE POLICY & PUBLIC ROUTE CLASSIFICATION (BUG 2)
+// =============================================================================
+console.log("\n>>> PART 5: ROUTE POLICY & CLASSIFICATION (BUG 2) <<<");
+
+console.log("\n[Test 26] Verifying Public Registration (POST /api/users) Not Flagged for Missing Auth...");
+const realworldReport = realworldResult.securityReport;
+const usersPostAuthViolation = realworldReport.violations.find(
+  (v) => v.routeId === "POST /api/users" && v.ruleId === "RULE_1_AUTH_BEFORE_SENSITIVE"
+);
+assert.strictEqual(usersPostAuthViolation, undefined, "POST /api/users must NOT be flagged as missing authentication");
+console.log("  ✓ Confirmed POST /api/users (public user creation) produces 0 missing-authentication violations");
+
+console.log("\n[Test 27] Verifying Public Login (POST /api/users/login) Not Flagged for Missing Auth...");
+const loginPostAuthViolation = realworldReport.violations.find(
+  (v) => v.routeId === "POST /api/users/login" && v.ruleId === "RULE_1_AUTH_BEFORE_SENSITIVE"
+);
+assert.strictEqual(loginPostAuthViolation, undefined, "POST /api/users/login must NOT be flagged as missing authentication");
+console.log("  ✓ Confirmed POST /api/users/login produces 0 missing-authentication violations");
+
+console.log("\n[Test 28] Verifying Login Endpoint Still Checked for Rate Limiting...");
+const loginRateLimitViolation = realworldReport.violations.find(
+  (v) => v.routeId === "POST /api/users/login" && v.ruleId === "RULE_4_MISSING_RATE_LIMIT"
+);
+assert.ok(loginRateLimitViolation, "POST /api/users/login must still be checked for missing rate limiting");
+assert.strictEqual(loginRateLimitViolation.severity, "MEDIUM");
+console.log("  ✓ Confirmed POST /api/users/login correctly triggers RULE_4_MISSING_RATE_LIMIT");
+
+console.log("\n[Test 29] Verifying Protected User Endpoints (GET /api/user, PUT /api/user)...");
+const getUserAuthViolation = realworldReport.violations.find((v) => v.routeId === "GET /api/user");
+assert.strictEqual(getUserAuthViolation, undefined, "GET /api/user has auth.required and must be clean");
+
+const putUserAuthViolation = realworldReport.violations.find((v) => v.routeId === "PUT /api/user");
+assert.strictEqual(putUserAuthViolation, undefined, "PUT /api/user has auth.required and must be clean");
+console.log("  ✓ Confirmed GET /api/user and PUT /api/user enforce auth.required and pass cleanly");
+
+console.log("\n[Test 30] Verifying Protected User Settings Without Auth Triggers Rule 1...");
+const vulnSettingsViolation = report.violations.find(
+  (v) => v.routeId === "PUT /api/users/settings"
+);
+// In vulnerable-app, PUT /api/users/settings has verifyToken so it passes
+assert.strictEqual(vulnSettingsViolation, undefined, "Protected PUT /api/users/settings with verifyToken passes");
+console.log("  ✓ Confirmed protected user-management endpoints are checked and pass when guard is present");
+
+console.log("\n[Test 31] Verifying Configurable Route Policy (expressflow.config.json)...");
+const customDir = path.resolve(__dirname, "fixtures/custom-policy-app");
+const customManifest = buildManifestForProject(customDir);
+const customConfig = loadProjectConfig(customDir);
+assert.ok(customConfig, "expressflow.config.json must be loaded");
+assert.strictEqual(customConfig.publicRoutes.length, 2);
+
+const customResult = runMiddleEndPipeline(customManifest, customConfig);
+const customReport = customResult.securityReport;
+
+// 1. Configured public signup must NOT have missing auth
+const customSignupAuth = customReport.violations.find(
+  (v) => v.routeId === "POST /api/custom-signup" && v.ruleId === "RULE_1_AUTH_BEFORE_SENSITIVE"
+);
+assert.strictEqual(customSignupAuth, undefined, "Custom configured public route must not trigger missing auth");
+
+// 2. Configured auth entrypoint without rate limiter MUST trigger rate limiting
+const customLoginRate = customReport.violations.find(
+  (v) => v.routeId === "POST /api/custom-login" && v.ruleId === "RULE_4_MISSING_RATE_LIMIT"
+);
+assert.ok(customLoginRate, "Custom configured auth entrypoint must trigger missing rate limiting");
+
+// 3. Unprotected custom delete MUST trigger missing auth
+const customDeleteAuth = customReport.violations.find(
+  (v) => v.routeId === "DELETE /api/custom-protected" && v.ruleId === "RULE_1_AUTH_BEFORE_SENSITIVE"
+);
+assert.ok(customDeleteAuth, "Unprotected DELETE must trigger missing authentication");
+console.log("  ✓ Successfully verified configurable route policy via expressflow.config.json");
+
+// =============================================================================
+// PART 6: MISORDERED MIDDLEWARE & HANDLER IDENTIFICATION SUITE
+// =============================================================================
+console.log("\n>>> PART 6: MISORDERED MIDDLEWARE & HANDLER IDENTIFICATION <<<");
+
+console.log("\n[Test 32] Verifying Correctly Ordered Route (Auth Before Handler)...");
+const orderedRoute = {
+  routeId: "DELETE /api/items/:id",
+  httpMethod: "DELETE",
+  fullPath: "/api/items/:id",
+  sourceFile: "routes/items.js",
+  loc: { start: { line: 1, column: 0 }, end: { line: 1, column: 50 } },
+  effectiveMiddlewares: [
+    { executionOrder: 0, scope: "ROUTE", name: "verifyToken", rawExpression: "verifyToken", isInline: false, sourceFile: "routes/items.js", loc: { start: { line: 1, column: 10 }, end: { line: 1, column: 21 } } },
+    { executionOrder: 1, scope: "ROUTE", name: "deleteItemHandler", rawExpression: "deleteItemHandler", isInline: false, sourceFile: "routes/items.js", loc: { start: { line: 1, column: 23 }, end: { line: 1, column: 40 } } },
+  ],
+};
+const orderedCfg = buildRouteCfg(orderedRoute);
+const orderedAudit = checkSecurityInvariants([orderedCfg]);
+assert.strictEqual(orderedAudit.violations.length, 0, "Correctly ordered route must have 0 violations");
+console.log("  ✓ Verified auth middleware before action handler produces 0 violations");
+
+console.log("\n[Test 33] Verifying Misordered Route (Auth After Handler)...");
+const misorderedRoute = {
+  routeId: "DELETE /api/items/:id",
+  httpMethod: "DELETE",
+  fullPath: "/api/items/:id",
+  sourceFile: "routes/items.js",
+  loc: { start: { line: 1, column: 0 }, end: { line: 1, column: 50 } },
+  effectiveMiddlewares: [
+    { executionOrder: 0, scope: "ROUTE", name: "deleteItemHandler", rawExpression: "deleteItemHandler", isInline: false, sourceFile: "routes/items.js", loc: { start: { line: 1, column: 10 }, end: { line: 1, column: 27 } } },
+    { executionOrder: 1, scope: "ROUTE", name: "verifyToken", rawExpression: "verifyToken", isInline: false, sourceFile: "routes/items.js", loc: { start: { line: 1, column: 29 }, end: { line: 1, column: 40 } } },
+  ],
+};
+const misorderedCfg = buildRouteCfg(misorderedRoute);
+const misorderedAudit = checkSecurityInvariants([misorderedCfg]);
+const misorderedVio = misorderedAudit.violations.find((v) => v.ruleId === "RULE_2_MISORDERED_SECURITY_GUARD");
+assert.ok(misorderedVio, "Must flag misordered guard placed after handler");
+assert.strictEqual(misorderedVio.severity, "CRITICAL");
+assert.ok(misorderedVio.message.includes("deleteItemHandler"), "Diagnostic must identify deleteItemHandler as the action handler");
+console.log("  ✓ Correctly flagged misordered guard placed after handler with exact action identification");
+
+console.log("\n[Test 34] Verifying Multiple Unrelated Middlewares Before Auth...");
+const multiBeforeAuthRoute = {
+  routeId: "POST /api/orders",
+  httpMethod: "POST",
+  fullPath: "/api/orders",
+  sourceFile: "routes/orders.js",
+  loc: { start: { line: 1, column: 0 }, end: { line: 1, column: 80 } },
+  effectiveMiddlewares: [
+    { executionOrder: 0, scope: "ROUTE", name: "logger", rawExpression: "logger", isInline: false, sourceFile: "routes/orders.js", loc: { start: { line: 1, column: 10 }, end: { line: 1, column: 16 } } },
+    { executionOrder: 1, scope: "ROUTE", name: "bodyParser", rawExpression: "bodyParser", isInline: false, sourceFile: "routes/orders.js", loc: { start: { line: 1, column: 18 }, end: { line: 1, column: 28 } } },
+    { executionOrder: 2, scope: "ROUTE", name: "verifyToken", rawExpression: "verifyToken", isInline: false, sourceFile: "routes/orders.js", loc: { start: { line: 1, column: 30 }, end: { line: 1, column: 41 } } },
+    { executionOrder: 3, scope: "ROUTE", name: "orderHandler", rawExpression: "orderHandler", isInline: false, sourceFile: "routes/orders.js", loc: { start: { line: 1, column: 43 }, end: { line: 1, column: 55 } } },
+  ],
+};
+const multiBeforeCfg = buildRouteCfg(multiBeforeAuthRoute);
+const multiBeforeAudit = checkSecurityInvariants([multiBeforeCfg]);
+const falseMisorder = multiBeforeAudit.violations.find((v) => v.ruleId === "RULE_2_MISORDERED_SECURITY_GUARD");
+assert.strictEqual(falseMisorder, undefined, "Multiple unrelated middlewares before auth must NOT be flagged as misordered");
+console.log("  ✓ Verified multiple unrelated middlewares before auth do not trigger false misordering");
+
+console.log("\n[Test 35] Verifying Multiple Middlewares With Auth After Action Handler...");
+const multiAfterHandlerRoute = {
+  routeId: "POST /api/orders",
+  httpMethod: "POST",
+  fullPath: "/api/orders",
+  sourceFile: "routes/orders.js",
+  loc: { start: { line: 1, column: 0 }, end: { line: 1, column: 80 } },
+  effectiveMiddlewares: [
+    { executionOrder: 0, scope: "ROUTE", name: "logger", rawExpression: "logger", isInline: false, sourceFile: "routes/orders.js", loc: { start: { line: 1, column: 10 }, end: { line: 1, column: 16 } } },
+    { executionOrder: 1, scope: "ROUTE", name: "bodyParser", rawExpression: "bodyParser", isInline: false, sourceFile: "routes/orders.js", loc: { start: { line: 1, column: 18 }, end: { line: 1, column: 28 } } },
+    { executionOrder: 2, scope: "ROUTE", name: "orderHandler", rawExpression: "orderHandler", isInline: false, sourceFile: "routes/orders.js", loc: { start: { line: 1, column: 30 }, end: { line: 1, column: 42 } } },
+    { executionOrder: 3, scope: "ROUTE", name: "verifyToken", rawExpression: "verifyToken", isInline: false, sourceFile: "routes/orders.js", loc: { start: { line: 1, column: 44 }, end: { line: 1, column: 55 } } },
+  ],
+};
+const multiAfterCfg = buildRouteCfg(multiAfterHandlerRoute);
+const multiAfterAudit = checkSecurityInvariants([multiAfterCfg]);
+const multiAfterVio = multiAfterAudit.violations.find((v) => v.ruleId === "RULE_2_MISORDERED_SECURITY_GUARD");
+assert.ok(multiAfterVio, "Must flag verifyToken placed after orderHandler in multi-middleware chain");
+assert.strictEqual(multiAfterVio.violatingNodeLabel, "[ROUTE] verifyToken");
+console.log("  ✓ Correctly flagged misordered auth in chain with 4 middlewares without positional hardcoding");
+
+console.log("\n[Test 36] Verifying Genuinely Unprotected Sensitive Handler...");
+const unprotectedRoute = {
+  routeId: "DELETE /api/data",
+  httpMethod: "DELETE",
+  fullPath: "/api/data",
+  sourceFile: "routes/data.js",
+  loc: { start: { line: 1, column: 0 }, end: { line: 1, column: 40 } },
+  effectiveMiddlewares: [
+    { executionOrder: 0, scope: "ROUTE", name: "deleteDataHandler", rawExpression: "deleteDataHandler", isInline: false, sourceFile: "routes/data.js", loc: { start: { line: 1, column: 10 }, end: { line: 1, column: 27 } } },
+  ],
+};
+const unprotectedCfg = buildRouteCfg(unprotectedRoute);
+const unprotectedAudit = checkSecurityInvariants([unprotectedCfg]);
+const unprotectedVio = unprotectedAudit.violations.find((v) => v.ruleId === "RULE_1_AUTH_BEFORE_SENSITIVE");
+assert.ok(unprotectedVio, "Must flag genuinely unprotected DELETE route");
+assert.strictEqual(unprotectedVio.severity, "CRITICAL");
+console.log("  ✓ Correctly flagged genuinely unprotected sensitive handler (Severity: CRITICAL)");
+
 console.log("\n================================================================================");
-console.log("🎉 ALL 19 TESTS PASSED! EXPRESSFLOW 100% IMPLEMENTATION IS COMPLETE!");
+console.log("🎉 ALL 36 TESTS PASSED! EXPRESSFLOW ANALYSIS RELIABILITY FULLY VERIFIED!");
 console.log("================================================================================");

@@ -16,6 +16,7 @@ export * from "./cfg/cfgModel";
 export * from "./cfg/cfgBuilder";
 export * from "./analysis/dominatorTree";
 export * from "./analysis/securityModel";
+export * from "./analysis/routePolicy";
 export * from "./analysis/securityChecker";
 export * from "./reporter/terminalReporter";
 
@@ -27,6 +28,7 @@ import { RouteCfg } from "./cfg/cfgModel";
 import { computeDominatorTree, DominatorTree } from "./analysis/dominatorTree";
 import { checkSecurityInvariants } from "./analysis/securityChecker";
 import { SecurityAnalysisReport } from "./analysis/securityModel";
+import { ExpressFlowConfig } from "./analysis/routePolicy";
 
 export interface MiddleEndAnalysisResult {
   resolution: ProjectResolutionContext;
@@ -40,7 +42,8 @@ export interface MiddleEndAnalysisResult {
  * Runs the complete Middle-End and Security Invariant pipeline on a given IR Manifest.
  */
 export function runMiddleEndPipeline(
-  manifest: ExpressFlowManifest
+  manifest: ExpressFlowManifest,
+  config?: ExpressFlowConfig
 ): MiddleEndAnalysisResult {
   // Step 1: Resolve cross-file modules, imports, exports, and router mounts
   const resolution = resolveModules(manifest);
@@ -58,7 +61,7 @@ export function runMiddleEndPipeline(
   }
 
   // Step 5: Verify security invariants using dominator reachability analysis
-  const securityReport = checkSecurityInvariants(cfgs);
+  const securityReport = checkSecurityInvariants(cfgs, config, manifest.diagnostics);
 
   return {
     resolution,

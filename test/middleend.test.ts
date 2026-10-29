@@ -1,12 +1,12 @@
-import * as assert from "node:assert";
-import * as path from "node:path";
-import { buildManifestForProject } from "../src/frontend/serializer/manifestBuilder";
-import {
+const assert = require("node:assert");
+const path = require("node:path");
+const {
+  buildManifestForProject,
   runMiddleEndPipeline,
   toAscii,
   toDot,
   toMermaid,
-} from "../src/middleend";
+} = require("../dist/index.js");
 
 console.log("=================================================");
 console.log("Running ExpressFlow Middle-End Pipeline Test Suite");

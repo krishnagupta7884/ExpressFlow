@@ -1,7 +1,6 @@
-import * as assert from "node:assert";
-import * as path from "node:path";
-import { readSourceFile } from "../src/frontend/parser/fileLoader";
-import { analyzeSourceContent, buildManifestForProject } from "../src/frontend/serializer/manifestBuilder";
+const assert = require("node:assert");
+const path = require("node:path");
+const { readSourceFile, analyzeSourceContent, buildManifestForProject } = require("../dist/index.js");
 
 console.log("=================================================");
 console.log("Running ExpressFlow Frontend Pipeline Test Suite");
